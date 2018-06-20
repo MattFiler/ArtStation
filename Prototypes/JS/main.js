@@ -1,75 +1,168 @@
+//DEFINE LOCATIONS
+var LOCATION = [
+    createLocation(
+        "st_thomas_head",
+        new THREE.Vector3(0,0,0), 
+        new THREE.Vector3(-44.1, -35.46, 106.15), 
+        new THREE.Vector3(-0.2258, -0.3901, -0.0520)),
+    createLocation(
+        "field",
+        new THREE.Vector3(800,-50,-400),
+        new THREE.Vector3(751.3, -50.5, -316.5), 
+        new THREE.Vector3(-0.1809, -0.5722, -0.1113))
+];
+var LOCATION_MESHES = [];
+var WORLDVIEW_POSITION = [new THREE.Vector3(400,2000,0), new THREE.Vector3(-Math.PI/2,0,0)];
+
 //SETUP RENDERER
 var renderer = new THREE.WebGLRenderer({canvas: document.getElementById("three_js_canvas"), antialias: true});
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 //SETUP CAMERA
-var camera = new THREE.PerspectiveCamera(35, window.innerWidth/window.innerHeight, 0.1, 10000); //FOV, ASPECT, NEAR, FAR
-camera.position.set(650,3700,200);
+var camera = new THREE.PerspectiveCamera(35, window.innerWidth/window.innerHeight, 0.1, 10000); 
+camera.position.x = WORLDVIEW_POSITION[0].x;
+camera.position.y = WORLDVIEW_POSITION[0].y;
+camera.position.z = WORLDVIEW_POSITION[0].z;
+camera.rotation.x = WORLDVIEW_POSITION[1].x;
+camera.rotation.y = WORLDVIEW_POSITION[1].y;
+camera.rotation.z = WORLDVIEW_POSITION[1].z;
 
 //SETUP SCENE
 var scene = new THREE.Scene();
 
+//TEMP BACKGROUND
+var path = 'ASSETS/Cubemap/';
+var format = '.jpg';
+var envMap = new THREE.CubeTextureLoader().load([
+    path + 'px' + format, path + 'nx' + format,
+    path + 'py' + format, path + 'ny' + format,
+    path + 'pz' + format, path + 'nz' + format
+]);
+scene.background = envMap;
+
 //SETUP CONTROLS
-var controls = new THREE.OrbitControls(camera);
-controls.minDistance = 3;
-controls.maxDistance = 4000;
-controls.keys = {
-    LEFT: 68, // D
-    UP: 87, // W
-    RIGHT: 65, // A
-    BOTTOM: 83 // S
-}
-controls.mouseButtons = {
-    ORBIT: THREE.MOUSE.RIGHT,
-    ZOOM: THREE.MOUSE.MIDDLE,
-    PAN: THREE.MOUSE.LEFT
-}
-controls.target = new THREE.Vector3(0,0,0);
-controls.update();
+var flyControls = new THREE.FlyControls(camera);
+flyControls.movementSpeed = 5;
+flyControls.domElement = document.getElementById("three_js_canvas");
+flyControls.rollSpeed = Math.PI/15;
+flyControls.autoForward = false;
+flyControls.dragToLook = true;
+flyControls.enabled = false;
 
-//IMPORT MODEL
-var GLTF_Loader = new THREE.GLTFLoader();
-GLTF_Loader.load('ASSETS/st_thomas_head.gltf', 
-function (GLTF_File) {
-    GLTF_File.scene.position.set(-450, -5, -870);
-    GLTF_File.scene.scale.set(0.5,0.5,0.5);
-    scene.add(GLTF_File.scene);
-});
-
-//BACKGROUND PLANE
-var map_plane = new THREE.PlaneGeometry(8192, 4096, 1, 1);
-var map_texture = new THREE.TextureLoader().load("ASSETS/BACKGROUND.JPG");
-var map_material = new THREE.MeshLambertMaterial( { color: 0xffffff, map: map_texture } );
-var map_plane_mesh = new THREE.Mesh(map_plane, map_material);
-map_plane_mesh.rotation.x = Math.PI / 2;
-map_plane_mesh.rotation.y = Math.PI;
-map_plane_mesh.rotation.z = Math.PI;
-map_plane_mesh.position.set(0,-38,0);
-map_plane_mesh.material.side = THREE.DoubleSide;
-scene.add(map_plane_mesh);
+//LOAD LOCATIONS
+for (var i=0; i < LOCATION.length; i++) {
+    loadLocation(LOCATION[i]);
+}
 
 //SETUP LIGHT
 var amb_light = new THREE.AmbientLight(0xffffff);
 scene.add(amb_light);
 
-//MOVE CAMERA
-//smoothCameraMovement(new THREE.Vector3(500,500,0), 10000);
-//controls.target = new THREE.Vector3(smoothMovement((0,0,0), (-280,560,-700), 10000));
-//controls.target = new THREE.Vector3(-280,560,-700);
+//BACKGROUND PLANE
+var map_plane = new THREE.PlaneGeometry(2048, 2048, 1, 1);
+var map_texture = new THREE.TextureLoader().load("ASSETS/Background/background.jpg");
+map_texture.wrapS = THREE.RepeatWrapping;
+map_texture.wrapT = THREE.RepeatWrapping;
+map_texture.repeat.set( 4, 4 );
+var map_material = new THREE.MeshLambertMaterial( { color: 0xffffff, map: map_texture } );
+var map_plane_mesh = new THREE.Mesh(map_plane, map_material);
+map_plane_mesh.rotation.x = Math.PI / 2;
+map_plane_mesh.rotation.y = Math.PI;
+map_plane_mesh.rotation.z = Math.PI;
+map_plane_mesh.position.set(400,-65,0);
+map_plane_mesh.material.side = THREE.DoubleSide;
+scene.add(map_plane_mesh);
 
 //RENDER LOOP
 requestAnimationFrame(render);
+var clock = new THREE.Clock();
 function render() {
     renderer.render(scene, camera);
-    controls.update();
+    flyControls.update(clock.getDelta());
     TWEEN.update();
     requestAnimationFrame(render);
 }
 
-//PERFORM SMOOTH CAMERA MOVEMENT WITH CONTROL FREEZE
-function smoothMovement(oldPosition, newPosition, duration){
-    var tween = new TWEEN.Tween(oldPosition).to(newPosition, duration).easing(TWEEN.Easing.Quadratic.InOut).onUpdate(function(d) { controls.enabled = false; console.log("gdg"); }).onComplete(function(){ controls.enabled = true; });
-    tween.start();
-    return tween;
+//LOAD LOCATION
+function loadLocation(location) {
+    //IMPORT MODEL
+    var GLTF_Loader = new THREE.GLTFLoader();
+    GLTF_Loader.load("ASSETS/"+location.Name+"/model.gltf", 
+    function (GLTF_File) {
+        //GRAB MESH FOR INTERACTION
+        GLTF_File.scene.traverse((node) => {       
+            if (node.isMesh) {
+                LOCATION_MESHES.push(node);
+            }
+        });
+
+        //ADD GLTF SCENE TO WEBGL SCENE
+        GLTF_File.scene.position.x = location.WorldSpawn.x;
+        GLTF_File.scene.position.y = location.WorldSpawn.y;
+        GLTF_File.scene.position.z = location.WorldSpawn.z;
+        scene.add(GLTF_File.scene);
+    });
+}
+
+//CREATE LOCATION
+function createLocation(name, worldSpawn, cameraStartPos, cameraStartRot) {
+    var location_data = {
+        Name: name,
+        WorldSpawn: worldSpawn, 
+        CameraStartPos: cameraStartPos,
+        CameraStartRot: cameraStartRot
+    };
+    return location_data;
+}
+
+//MOVE TO LOCATION ON CLICK
+var raycaster = new THREE.Raycaster();
+var mouse = new THREE.Vector2();
+$(document).on("click",function(event) {
+    mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    var intersects = raycaster.intersectObjects(LOCATION_MESHES);
+    if (intersects.length > 0) {
+        var interacted_model_position = {
+            x: intersects[0].object.matrixWorld.elements[12],
+            y: intersects[0].object.matrixWorld.elements[13],
+            z: intersects[0].object.matrixWorld.elements[14]
+        };
+        for (var i=0; i < LOCATION.length; i++) {
+            if (LOCATION[i].WorldSpawn.x == interacted_model_position.x &&
+                LOCATION[i].WorldSpawn.y == interacted_model_position.y &&
+                LOCATION[i].WorldSpawn.z == interacted_model_position.z) {
+                console.log("MOVING TO " + LOCATION[i].Name);
+                performTween(camera.position, LOCATION[i].CameraStartPos, 5000);
+                performTween(camera.rotation, LOCATION[i].CameraStartRot, 5000);
+            }
+        }
+    }
+});
+
+//MOVE BACK TO "WORLD VIEW" ON PRESS OF KEY (ENTER)
+$(document).keypress(function(e) {
+    var keycode = (event.keyCode ? event.keyCode : event.which);
+    if(keycode == '13'){
+        console.log("MOVING TO HOME POSITION");
+        performTween(camera.position, WORLDVIEW_POSITION[0], 5000, false);
+        performTween(camera.rotation, WORLDVIEW_POSITION[1], 5000, false);   
+    }
+});
+
+//PERFORM SMOOTH CAMERA MOVEMENT WITH CONTROL UNLOCK
+function performTween(position, newPosition, duration, enableFlyControls = true){
+    var tween = new TWEEN.Tween(position)
+                .to(newPosition, duration)
+                .easing(TWEEN.Easing.Quadratic.Out)
+                .onUpdate(function() {
+                    flyControls.enabled = false;
+                })
+                .onComplete(function() {
+                    flyControls.enabled = enableFlyControls;
+                }).start();
 }

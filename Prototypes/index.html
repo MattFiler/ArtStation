@@ -1,22 +1,41 @@
 <html>
     <head>
-        <title>ThreeJS Test</title>    
+        <title>ARTSTATION Prototype</title>    
         <link rel="icon" type="image/x-icon" href="http://mattfiler.co.uk/favicon.ico">   
         <meta name="viewport" content="width=device-width, initial-scale=1"> 
         <style>
             body {
                 margin: 0;
             }
+            video {
+                display: none;
+            }
+            .panel {
+                position:absolute;
+                left:0;
+                right:0;
+                color: white;
+                text-shadow: 0px 0px 13px rgba(150, 150, 150, 1);
+            }
+            .controls {
+                bottom:0;
+                text-align: center;
+            }
         </style>
     </head>
     <body>
+        <div class="panel controls">
+            <p><b>BASIC CONTROLS: ENTER (RESET VIEW), RMB (PAN CAMERA), WASD (MOVE CAMERA)</b></p>
+        </div>
         <canvas id="three_js_canvas">Your browser does not support WebGL.</canvas>
-        
-        <script src="JS/jquery-1.11.3.js"></script>
-        <script src="JS/Tween.js"></script>
-        <script src="JS/three.js"></script>
-        <script src="JS/GLTFLoader.js"></script>
-        <script src="JS/OrbitControls.js"></script>
-        <script src="JS/main.js"></script>
+        <!--<video src="ASSETS/field/Videos/DJI_0001.MOV" autoplay loop></video>-->
     </body>
+
+    <script src="JS/libs/jQuery/jquery-1.11.3.js"></script>
+    <script src="JS/libs/TweenJS/Tween.js"></script>
+    <script src="JS/libs/ThreeJS/three.js"></script>
+    <script src="JS/libs/ThreeJS/GLTFLoader.js"></script>
+    <script src="JS/libs/ThreeJS/Clock.js"></script>
+    <script src="JS/libs/ThreeJS/FlyControls_CUSTOM.js"></script>
+    <script src="JS/main.js"></script>
 </html>
