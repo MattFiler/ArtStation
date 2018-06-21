@@ -1,3 +1,8 @@
+//DEFINE LOD LEVELS
+var LOD_HIGH_DETAIL = 0;
+var LOD_MEDIUM_DETAIL = 1;
+var LOD_LOW_DETAIL = 2;
+
 //DEFINE LOCATIONS
 var LOCATION = [
     createLocation(
@@ -15,7 +20,7 @@ var LOCATION_MESHES = [];
 var WORLDVIEW_POSITION = [new THREE.Vector3(400,2000,0), new THREE.Vector3(-Math.PI/2,0,0)];
 
 //SETUP RENDERER
-var renderer = new THREE.WebGLRenderer({canvas: document.getElementById("three_js_canvas"), antialias: true});
+var renderer = new THREE.WebGLRenderer({canvas: document.getElementById("ARTSTATION_Canvas"), antialias: true});
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 
@@ -44,16 +49,14 @@ scene.background = envMap;
 //SETUP CONTROLS
 var flyControls = new THREE.FlyControls(camera);
 flyControls.movementSpeed = 5;
-flyControls.domElement = document.getElementById("three_js_canvas");
+flyControls.domElement = document.getElementById("ARTSTATION_Canvas");
 flyControls.rollSpeed = Math.PI/15;
 flyControls.autoForward = false;
 flyControls.dragToLook = true;
 flyControls.enabled = false;
 
-//LOAD LOCATIONS
-for (var i=0; i < LOCATION.length; i++) {
-    loadLocation(LOCATION[i]);
-}
+//LOAD WORLD VIEW (LOW LOD MODELS)
+loadWorldView();
 
 //SETUP LIGHT
 var amb_light = new THREE.AmbientLight(0xffffff);
@@ -74,6 +77,9 @@ map_plane_mesh.position.set(400,-65,0);
 map_plane_mesh.material.side = THREE.DoubleSide;
 scene.add(map_plane_mesh);
 
+//SPAWN ALL VIDEOS IN WORLD
+spawnAllVideos();
+
 //RENDER LOOP
 requestAnimationFrame(render);
 var clock = new THREE.Clock();
@@ -85,10 +91,10 @@ function render() {
 }
 
 //LOAD LOCATION
-function loadLocation(location) {
+function loadLocation(location, lod) {
     //IMPORT MODEL
     var GLTF_Loader = new THREE.GLTFLoader();
-    GLTF_Loader.load("ASSETS/"+location.Name+"/model.gltf", 
+    GLTF_Loader.load("ASSETS/"+location.Name+"/model_lod"+lod+".gltf", 
     function (GLTF_File) {
         //GRAB MESH FOR INTERACTION
         GLTF_File.scene.traverse((node) => {       
@@ -101,7 +107,11 @@ function loadLocation(location) {
         GLTF_File.scene.position.x = location.WorldSpawn.x;
         GLTF_File.scene.position.y = location.WorldSpawn.y;
         GLTF_File.scene.position.z = location.WorldSpawn.z;
+        GLTF_File.scene.name = "ARTSTATION_EnvironmentScene";
         scene.add(GLTF_File.scene);
+
+        //SAVE UUID
+        location.UUID = GLTF_File.scene.uuid;
     });
 }
 
@@ -111,9 +121,30 @@ function createLocation(name, worldSpawn, cameraStartPos, cameraStartRot) {
         Name: name,
         WorldSpawn: worldSpawn, 
         CameraStartPos: cameraStartPos,
-        CameraStartRot: cameraStartRot
+        CameraStartRot: cameraStartRot,
+        UUID: "X"
     };
     return location_data;
+}
+
+//LOAD WORLD VIEW
+function loadWorldView() {
+    unloadWorldView();
+    for (var i=0; i < LOCATION.length; i++) {
+        loadLocation(LOCATION[i], LOD_LOW_DETAIL);
+    }
+}
+
+//UNLOAD WORLD VIEW
+function unloadWorldView() {
+    try {
+        scene.traverse((node) => {       
+            if (node.name == "ARTSTATION_EnvironmentScene") {
+                scene.remove(node);
+            }
+        });
+    } catch { }
+    //if (LOCATION[i].UUID == scene.children[i].uuid) {
 }
 
 //MOVE TO LOCATION ON CLICK
@@ -136,7 +167,11 @@ $(document).on("click",function(event) {
             if (LOCATION[i].WorldSpawn.x == interacted_model_position.x &&
                 LOCATION[i].WorldSpawn.y == interacted_model_position.y &&
                 LOCATION[i].WorldSpawn.z == interacted_model_position.z) {
-                console.log("MOVING TO " + LOCATION[i].Name);
+                //UNLOAD LOW LOD MODELS, LOAD HIGH LOD MODEL
+                unloadWorldView();
+                loadLocation(LOCATION[i], LOD_MEDIUM_DETAIL);
+
+                //MOVE TO LOCATION
                 performTween(camera.position, LOCATION[i].CameraStartPos, 5000);
                 performTween(camera.rotation, LOCATION[i].CameraStartRot, 5000);
             }
@@ -148,11 +183,40 @@ $(document).on("click",function(event) {
 $(document).keypress(function(e) {
     var keycode = (event.keyCode ? event.keyCode : event.which);
     if(keycode == '13'){
-        console.log("MOVING TO HOME POSITION");
+        loadWorldView();
         performTween(camera.position, WORLDVIEW_POSITION[0], 5000, false);
         performTween(camera.rotation, WORLDVIEW_POSITION[1], 5000, false);   
     }
 });
+
+//SPAWN ALL VIDEOS IN WORLD
+function spawnAllVideos() {
+    createVideo(new THREE.Vector3(0,0,0), "field", "edited.mp4");
+}
+
+//CREATE A VIDEO IN WORLD
+function createVideo(position, location, videoName) {
+    var video_element = document.createElement("video");
+    video_element.src = "ASSETS/"+location+"/Videos/"+videoName;
+    video_element.id = location+"_"+videoName;
+    video_element.autoplay = true;
+    video_element.volume = 0;
+    document.body.appendChild(video_element);
+    var video_plane = new THREE.PlaneGeometry(60, 34, 1, 1);
+    var video_elem = document.getElementById(location+"_"+videoName);
+    var video_texture = new THREE.VideoTexture(video_elem);
+    video_texture.minFilter = THREE.LinearFilter;
+    video_texture.magFilter = THREE.LinearFilter;
+    video_texture.format = THREE.RGBFormat;
+    var video_material = new THREE.MeshLambertMaterial( { color: 0xffffff, map: video_texture } );
+    var video_plane_mesh = new THREE.Mesh(video_plane, video_material);
+    video_plane_mesh.material.side = THREE.DoubleSide;
+    video_plane_mesh.name = "ARTSTATION_VideoPlane";
+    video_plane_mesh.position.x = position.x;
+    video_plane_mesh.position.y = position.y;
+    video_plane_mesh.position.z = position.z;
+    scene.add(video_plane_mesh);
+}
 
 //PERFORM SMOOTH CAMERA MOVEMENT WITH CONTROL UNLOCK
 function performTween(position, newPosition, duration, enableFlyControls = true){
