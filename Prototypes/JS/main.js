@@ -3,21 +3,16 @@ var LOD_HIGH_DETAIL = 0;
 var LOD_MEDIUM_DETAIL = 1;
 var LOD_LOW_DETAIL = 2;
 
-//DEFINE LOCATIONS
-var LOCATION = [
-    createLocation(
-        "st_thomas_head",
-        new THREE.Vector3(0,0,0), 
-        new THREE.Vector3(-44.1, -35.46, 106.15), 
-        new THREE.Vector3(-0.2258, -0.3901, -0.0520)),
-    createLocation(
-        "field",
-        new THREE.Vector3(800,-50,-400),
-        new THREE.Vector3(751.3, -50.5, -316.5), 
-        new THREE.Vector3(-0.1809, -0.5722, -0.1113))
-];
+//DEFINE STATES
+var IN_WORLDVIEW = 0;
+var IN_ENVIRONMENT = 1;
+
+//DEFINE LOCATION DATA
+var LOCATION = [];
+var VIDEO = [];
 var LOCATION_MESHES = [];
 var WORLDVIEW_POSITION = [new THREE.Vector3(400,2000,0), new THREE.Vector3(-Math.PI/2,0,0)];
+var STATE = IN_WORLDVIEW;
 
 //SETUP RENDERER
 var renderer = new THREE.WebGLRenderer({canvas: document.getElementById("ARTSTATION_Canvas"), antialias: true});
@@ -54,6 +49,18 @@ flyControls.rollSpeed = Math.PI/15;
 flyControls.autoForward = false;
 flyControls.dragToLook = true;
 flyControls.enabled = false;
+
+//CREATE LOCATIONS
+createLocation(
+    "st_thomas_head",
+    new THREE.Vector3(0,0,0), 
+    new THREE.Vector3(-44.1, -35.46, 106.15), 
+    new THREE.Vector3(-0.2258, -0.3901, -0.0520));
+createLocation(
+    "field",
+    new THREE.Vector3(800,-50,-400),
+    new THREE.Vector3(751.3, -50.5, -316.5), 
+    new THREE.Vector3(-0.1809, -0.5722, -0.1113));
 
 //LOAD WORLD VIEW (LOW LOD MODELS)
 loadWorldView();
@@ -103,16 +110,36 @@ function loadLocation(location, lod) {
             }
         });
 
-        //ADD GLTF SCENE TO WEBGL SCENE
-        GLTF_File.scene.position.x = location.WorldSpawn.x;
-        GLTF_File.scene.position.y = location.WorldSpawn.y;
-        GLTF_File.scene.position.z = location.WorldSpawn.z;
-        GLTF_File.scene.name = "ARTSTATION_EnvironmentScene";
-        scene.add(GLTF_File.scene);
+        if (location.LOD != lod) {
+            //SETUP SCENE PARAMETERS
+            GLTF_File.scene.position.x = location.WorldSpawn.x;
+            GLTF_File.scene.position.y = location.WorldSpawn.y;
+            GLTF_File.scene.position.z = location.WorldSpawn.z;
+            GLTF_File.scene.name = "ARTSTATION_EnvironmentScene";
 
-        //SAVE UUID
-        location.UUID = GLTF_File.scene.uuid;
+            //REMOVE OTHER LODS AND ADD CURRENT
+            unloadLocation(location);
+            scene.add(GLTF_File.scene);
+
+            //SAVE UUID AND LOD
+            location.UUID = GLTF_File.scene.uuid;
+            location.LOD = lod;
+
+            console.log("@loadLocation\nAdding: " + location.Name + " LOD " + location.LOD);
+        }
     });
+}
+
+//UNLOAD LOCATION FROM SCENE BY UUID
+function unloadLocation(location) {
+    try {
+        scene.traverse((node) => {       
+            if (node.uuid == location.UUID) {
+                scene.remove(node);
+                console.log("@unloadLocation\nRemoving: " + location.Name + " LOD " + location.LOD);
+            }
+        });
+    } catch { }
 }
 
 //CREATE LOCATION
@@ -122,58 +149,57 @@ function createLocation(name, worldSpawn, cameraStartPos, cameraStartRot) {
         WorldSpawn: worldSpawn, 
         CameraStartPos: cameraStartPos,
         CameraStartRot: cameraStartRot,
-        UUID: "X"
+        UUID: "X",
+        LOD: "X"
     };
-    return location_data;
+    LOCATION.push(location_data);
 }
 
 //LOAD WORLD VIEW
 function loadWorldView() {
-    unloadWorldView();
+    //SET STATE
+    STATE = IN_WORLDVIEW;
+    console.log("State transition to: " + STATE);
+
+    //LOAD LOCATIONS IN LOW LOD
     for (var i=0; i < LOCATION.length; i++) {
         loadLocation(LOCATION[i], LOD_LOW_DETAIL);
     }
-}
-
-//UNLOAD WORLD VIEW
-function unloadWorldView() {
-    try {
-        scene.traverse((node) => {       
-            if (node.name == "ARTSTATION_EnvironmentScene") {
-                scene.remove(node);
-            }
-        });
-    } catch { }
-    //if (LOCATION[i].UUID == scene.children[i].uuid) {
 }
 
 //MOVE TO LOCATION ON CLICK
 var raycaster = new THREE.Raycaster();
 var mouse = new THREE.Vector2();
 $(document).on("click",function(event) {
-    mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
-    mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
+    if (STATE == IN_WORLDVIEW) {
+        mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
+        mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
 
-    raycaster.setFromCamera(mouse, camera);
+        raycaster.setFromCamera(mouse, camera);
 
-    var intersects = raycaster.intersectObjects(LOCATION_MESHES);
-    if (intersects.length > 0) {
-        var interacted_model_position = {
-            x: intersects[0].object.matrixWorld.elements[12],
-            y: intersects[0].object.matrixWorld.elements[13],
-            z: intersects[0].object.matrixWorld.elements[14]
-        };
-        for (var i=0; i < LOCATION.length; i++) {
-            if (LOCATION[i].WorldSpawn.x == interacted_model_position.x &&
-                LOCATION[i].WorldSpawn.y == interacted_model_position.y &&
-                LOCATION[i].WorldSpawn.z == interacted_model_position.z) {
-                //UNLOAD LOW LOD MODELS, LOAD HIGH LOD MODEL
-                unloadWorldView();
-                loadLocation(LOCATION[i], LOD_MEDIUM_DETAIL);
+        var intersects = raycaster.intersectObjects(LOCATION_MESHES);
+        if (intersects.length > 0) {
+            var interacted_model_position = {
+                x: intersects[0].object.matrixWorld.elements[12],
+                y: intersects[0].object.matrixWorld.elements[13],
+                z: intersects[0].object.matrixWorld.elements[14]
+            };
+            for (var i=0; i < LOCATION.length; i++) {
+                if (LOCATION[i].WorldSpawn.x == interacted_model_position.x &&
+                    LOCATION[i].WorldSpawn.y == interacted_model_position.y &&
+                    LOCATION[i].WorldSpawn.z == interacted_model_position.z) {
+                    //UNLOAD LOW LOD MODEL, LOAD HIGH LOD MODEL
+                    unloadLocation(LOCATION[i]);
+                    loadLocation(LOCATION[i], LOD_MEDIUM_DETAIL);
 
-                //MOVE TO LOCATION
-                performTween(camera.position, LOCATION[i].CameraStartPos, 5000);
-                performTween(camera.rotation, LOCATION[i].CameraStartRot, 5000);
+                    //MOVE TO LOCATION
+                    performCameraTween(camera.position, LOCATION[i].CameraStartPos, 5000);
+                    performCameraTween(camera.rotation, LOCATION[i].CameraStartRot, 5000);
+
+                    //SET STATE
+                    STATE = IN_ENVIRONMENT;
+                    console.log("State transition to: " + STATE);
+                }
             }
         }
     }
@@ -184,24 +210,28 @@ $(document).keypress(function(e) {
     var keycode = (event.keyCode ? event.keyCode : event.which);
     if(keycode == '13'){
         loadWorldView();
-        performTween(camera.position, WORLDVIEW_POSITION[0], 5000, false);
-        performTween(camera.rotation, WORLDVIEW_POSITION[1], 5000, false);   
+        performCameraTween(camera.position, WORLDVIEW_POSITION[0], 5000, false);
+        performCameraTween(camera.rotation, WORLDVIEW_POSITION[1], 5000, false);   
     }
 });
 
 //SPAWN ALL VIDEOS IN WORLD
 function spawnAllVideos() {
-    createVideo(new THREE.Vector3(0,0,0), "field", "edited.mp4");
+    createVideo(new THREE.Vector3(0,0,0), "field", "edited");
 }
 
 //CREATE A VIDEO IN WORLD
 function createVideo(position, location, videoName) {
+    //CREATE VIDEO ELEMENT
     var video_element = document.createElement("video");
-    video_element.src = "ASSETS/"+location+"/Videos/"+videoName;
+    video_element.src = "ASSETS/"+location+"/Videos/"+videoName+".mp4";
     video_element.id = location+"_"+videoName;
     video_element.autoplay = true;
+    video_element.loop = true;
     video_element.volume = 0;
     document.body.appendChild(video_element);
+
+    //CREATE VIDEO MESH
     var video_plane = new THREE.PlaneGeometry(60, 34, 1, 1);
     var video_elem = document.getElementById(location+"_"+videoName);
     var video_texture = new THREE.VideoTexture(video_elem);
@@ -216,10 +246,62 @@ function createVideo(position, location, videoName) {
     video_plane_mesh.position.y = position.y;
     video_plane_mesh.position.z = position.z;
     scene.add(video_plane_mesh);
+
+    //GET VIDEO POSITION DATA
+    //API/gps_parser.php?location=field&srt=edited
+    var video_position_data = [];
+    var video_position_data_path = "API/gps_parser.php?location=" + location + "&srt=" + videoName;
+    $.getJSON(video_position_data_path, function(data) {
+        $.each(data, function(key, val) {
+            video_position_data.push(val);
+        });
+    });
+
+    //ADD VIDEO TO GLOBAL VIDEO ARRAY
+    var video_data = {
+        Name: videoName,
+        ElementID: location+"_"+videoName,
+        Location: location, 
+        UUID: video_plane_mesh.uuid,
+        PositionArray: video_position_data
+    };
+    VIDEO.push(video_data);
+    var video_index = VIDEO.length - 1;
+
+    //MOVE VIDEO FROM GPS
+    moveVideoFromGPS(video_index);
+}
+
+//MOVE VIDEO ON TIME UPDATE FROM GPS DATA (WIP!!)
+function moveVideoFromGPS(video_index) {
+    var major_time_milestone = 0;
+    var previous_acted_milestone = -1;
+    $("#"+VIDEO[video_index].ElementID).on("timeupdate", function(event){
+        major_time_milestone = Math.floor(this.currentTime);
+        if (major_time_milestone != previous_acted_milestone) {
+            previous_acted_milestone = major_time_milestone;
+            try {
+                scene.traverse((node) => {       
+                    if (node.uuid == VIDEO[video_index].UUID) {
+                        var new_position = new THREE.Vector3(
+                            VIDEO[video_index].PositionArray[major_time_milestone][0], 
+                            VIDEO[video_index].PositionArray[major_time_milestone][3], 
+                            VIDEO[video_index].PositionArray[major_time_milestone][1]);
+
+                        node.position.x = new_position.x;
+                        node.position.y = new_position.y;
+                        node.position.z = new_position.z;
+
+                        //var tween = new TWEEN.Tween(node.position).to(new_position, 1000).start();
+                    }
+                });
+            } catch { }
+        }
+    });
 }
 
 //PERFORM SMOOTH CAMERA MOVEMENT WITH CONTROL UNLOCK
-function performTween(position, newPosition, duration, enableFlyControls = true){
+function performCameraTween(position, newPosition, duration, enableFlyControls = true){
     var tween = new TWEEN.Tween(position)
                 .to(newPosition, duration)
                 .easing(TWEEN.Easing.Quadratic.Out)
