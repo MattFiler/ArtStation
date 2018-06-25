@@ -21,12 +21,18 @@
                 bottom:0;
                 text-align: center;
             }
+            .DEBUG_CAMERA_BUTTON {
+                position: absolute;
+                top:0;
+                right:0;
+            }
         </style>
     </head>
     <body>
         <div class="panel controls">
             <p><b>BASIC CONTROLS: ENTER (RESET VIEW), RMB (PAN CAMERA), WASD (MOVE CAMERA)</b></p>
         </div>
+        <button class="DEBUG_CAMERA_BUTTON">VIDEO PLANE TEST</button>
         <canvas id="ARTSTATION_Canvas">Your browser does not support WebGL.</canvas>
     </body>
 
@@ -35,6 +41,6 @@
     <script src="JS/libs/ThreeJS/three.js"></script>
     <script src="JS/libs/ThreeJS/GLTFLoader.js"></script>
     <script src="JS/libs/ThreeJS/Clock.js"></script>
-    <script src="JS/libs/ThreeJS/FlyControls_CUSTOM.js"></script>
+    <script src="JS/libs/ThreeJS/FirstPersonControls_CUSTOM.js"></script>
     <script src="JS/main.js"></script>
 </html>

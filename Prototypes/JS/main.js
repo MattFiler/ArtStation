@@ -42,13 +42,16 @@ var envMap = new THREE.CubeTextureLoader().load([
 scene.background = envMap;
 
 //SETUP CONTROLS
-var flyControls = new THREE.FlyControls(camera);
-flyControls.movementSpeed = 5;
-flyControls.domElement = document.getElementById("ARTSTATION_Canvas");
-flyControls.rollSpeed = Math.PI/15;
-flyControls.autoForward = false;
-flyControls.dragToLook = true;
-flyControls.enabled = false;
+var camera_controls = new THREE.FirstPersonControls(camera);
+camera_controls.movementSpeed = 5;
+camera_controls.lookSpeed = 0.05;
+camera_controls.domElement = document.getElementById("ARTSTATION_Canvas");
+camera_controls.autoForward = false;
+camera_controls.enabled = false;
+
+//AXES HELPER (DEBUG ONLY)
+//var axesHelper = new THREE.AxesHelper(50);
+//scene.add(axesHelper);
 
 //CREATE LOCATIONS
 createLocation(
@@ -92,7 +95,7 @@ requestAnimationFrame(render);
 var clock = new THREE.Clock();
 function render() {
     renderer.render(scene, camera);
-    flyControls.update(clock.getDelta());
+    camera_controls.update(clock.getDelta());
     TWEEN.update();
     requestAnimationFrame(render);
 }
@@ -196,6 +199,10 @@ $(document).on("click",function(event) {
                     performCameraTween(camera.position, LOCATION[i].CameraStartPos, 5000);
                     performCameraTween(camera.rotation, LOCATION[i].CameraStartRot, 5000);
 
+                    //PLAY VIDEOS IN LOCATION (WIP!!)
+                    var video_player = document.getElementById(VIDEO[0].ElementID); 
+                    video_player.play(); 
+
                     //SET STATE
                     STATE = IN_ENVIRONMENT;
                     console.log("State transition to: " + STATE);
@@ -229,6 +236,7 @@ function createVideo(position, location, videoName) {
     video_element.autoplay = true;
     video_element.loop = true;
     video_element.volume = 0;
+    video_element.muted = true;
     document.body.appendChild(video_element);
 
     //CREATE VIDEO MESH
@@ -248,9 +256,9 @@ function createVideo(position, location, videoName) {
     scene.add(video_plane_mesh);
 
     //GET VIDEO POSITION DATA
-    //API/gps_parser.php?location=field&srt=edited
     var video_position_data = [];
-    var video_position_data_path = "API/gps_parser.php?location=" + location + "&srt=" + videoName;
+    var video_position_data_path = "API/gps_parser.php?location=" + location + "&srt=" + videoName; //REMOTE
+    //var video_position_data_path = "API/gps_parser.json"; //LOCAL
     $.getJSON(video_position_data_path, function(data) {
         $.each(data, function(key, val) {
             video_position_data.push(val);
@@ -284,15 +292,29 @@ function moveVideoFromGPS(video_index) {
                 scene.traverse((node) => {       
                     if (node.uuid == VIDEO[video_index].UUID) {
                         var new_position = new THREE.Vector3(
-                            VIDEO[video_index].PositionArray[major_time_milestone][0], 
-                            VIDEO[video_index].PositionArray[major_time_milestone][3], 
-                            VIDEO[video_index].PositionArray[major_time_milestone][1]);
+                            VIDEO[video_index].PositionArray[major_time_milestone+1][0], 
+                            VIDEO[video_index].PositionArray[major_time_milestone+1][3], 
+                            VIDEO[video_index].PositionArray[major_time_milestone+1][1]);
 
-                        node.position.x = new_position.x;
-                        node.position.y = new_position.y;
-                        node.position.z = new_position.z;
+                        //node.position.x = new_position.x;
+                        //node.position.y = new_position.y;
+                        //node.position.z = new_position.z;
 
-                        //var tween = new TWEEN.Tween(node.position).to(new_position, 1000).start();
+                        //http://dotnetfollower.com/wordpress/2011/08/javascript-how-to-convert-latitude-and-longitude-to-mercator-coordinates/
+                        function LatLonToMercator(lat, lon) {
+                            var rMajor = 6378137;
+                            var shift  = Math.PI * rMajor;
+                            var z      = lon * shift / 180;
+                            var x      = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180);
+                            x = x * shift / 180;
+                         
+                            return {'Z': z, 'X': x};
+                        }
+
+                        var converted_coords = LatLonToMercator(new_position.x, new_position.z);
+
+                        var NEW_POSITION = new THREE.Vector3(converted_coords.X, new_position.y, converted_coords.Z);
+                        var tween = new TWEEN.Tween(node.position).to(NEW_POSITION, 1000).start();
                     }
                 });
             } catch { }
@@ -301,14 +323,62 @@ function moveVideoFromGPS(video_index) {
 }
 
 //PERFORM SMOOTH CAMERA MOVEMENT WITH CONTROL UNLOCK
-function performCameraTween(position, newPosition, duration, enableFlyControls = true){
+function performCameraTween(position, newPosition, duration, enablecamera_controls = true){
     var tween = new TWEEN.Tween(position)
                 .to(newPosition, duration)
                 .easing(TWEEN.Easing.Quadratic.Out)
                 .onUpdate(function() {
-                    flyControls.enabled = false;
+                    camera_controls.enabled = false;
                 })
                 .onComplete(function() {
-                    flyControls.enabled = enableFlyControls;
+                    camera_controls.enabled = enablecamera_controls;
                 }).start();
 }
+
+//DEBUG - MOVE CAMERA TO VIDEO PLANE (WIP!!)
+$(".DEBUG_CAMERA_BUTTON").on("click",function(event) { 
+    console.log("Moving camera to video plane...");
+
+    var video_player = document.getElementById(VIDEO[0].ElementID); 
+    video_player.play(); 
+
+    camera.position.x = -4663770.592158944;
+    camera.position.y = 36.794581409249375;
+    camera.position.z = -313632.4532830912;
+    camera.rotation.x = -0.06993838069214417;
+    camera.rotation.y = -0.2952724632887186;
+    camera.rotation.z = -0.020382531278762522;
+    camera_controls.enabled = true;
+
+    var geometry = new THREE.Geometry();
+    for (var i=0; i<60; i++) {
+        try {
+            scene.traverse((node) => {       
+                if (node.uuid == VIDEO[0].UUID) {
+                    var new_position = new THREE.Vector3(
+                        VIDEO[0].PositionArray[i][0], 
+                        VIDEO[0].PositionArray[i][3], 
+                        VIDEO[0].PositionArray[i][1]);
+
+                    function LatLonToMercator(lat, lon) {
+                        var rMajor = 6378137;
+                        var shift  = Math.PI * rMajor;
+                        var z      = lon * shift / 180;
+                        var x      = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180);
+                        x = x * shift / 180;
+                     
+                        return {'Z': z, 'X': x};
+                    }
+
+                    var converted_coords = LatLonToMercator(new_position.x, new_position.z);
+
+                    var NEW_POSITION = new THREE.Vector3(converted_coords.X, new_position.y, converted_coords.Z);
+                    geometry.vertices.push(NEW_POSITION);
+                }
+            });
+        } catch { }
+    }
+    var material = new THREE.LineBasicMaterial({color : 0xff0000});
+    var line = new THREE.Line(geometry, material);
+    scene.add(line);
+});
