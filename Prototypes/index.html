@@ -1,46 +1,39 @@
 <html>
     <head>
         <title>ARTSTATION Prototype</title>    
-        <link rel="icon" type="image/x-icon" href="http://mattfiler.co.uk/favicon.ico">   
-        <meta name="viewport" content="width=device-width, initial-scale=1"> 
-        <style>
-            body {
-                margin: 0;
-            }
-            video {
-                display: none;
-            }
-            .panel {
-                position:absolute;
-                left:0;
-                right:0;
-                color: white;
-                text-shadow: 0px 0px 13px rgba(150, 150, 150, 1);
-            }
-            .controls {
-                bottom:0;
-                text-align: center;
-            }
-            .DEBUG_CAMERA_BUTTON {
-                position: absolute;
-                top:0;
-                right:0;
-            }
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" type="image/x-icon" href="http://mattfiler.co.uk/favicon.ico" />   
+        <!-- Bootstrap -->
+        <link rel="stylesheet" href="CSS/libs/Bootstrap/bootstrap.min.css" />
+        <!-- ARTSTATION -->
+        <link rel="stylesheet" href="CSS/main.css" />
     </head>
+
     <body>
-        <div class="panel controls">
-            <p><b>BASIC CONTROLS: ENTER (RESET VIEW), RMB (PAN CAMERA), WASD (MOVE CAMERA)</b></p>
+        <!-- Loading Screen -->
+        <div id="ARTSTATION_LoadScreen">
+            <p>LOADING <span id="ARTSTATION_DynamicProgressStatus">0%</span></p>
         </div>
-        <button class="DEBUG_CAMERA_BUTTON">VIDEO PLANE TEST</button>
+        <!-- Controls Panel -->
+        <div class="panel controls">
+            <p><b>BASIC CONTROLS: LMB (LOAD ENVIRONMENT), ENTER (RESET VIEW), RMB (PAN CAMERA), WASD (MOVE CAMERA)</b></p>
+        </div>
+        <!-- Debug Button -->
+        <button class="DEBUG_CAMERA_BUTTON btn">VIDEO PLANE TEST</button>
+        <!-- Main Canvas -->
         <canvas id="ARTSTATION_Canvas">Your browser does not support WebGL.</canvas>
     </body>
 
+    <!-- jQuery -->
     <script src="JS/libs/jQuery/jquery-1.11.3.js"></script>
+    <!-- Bootstrap -->
+    <script src="JS/libs/Bootstrap/bootstrap.min.js"></script>
+    <!-- ThreeJS & TweenJS -->
     <script src="JS/libs/TweenJS/Tween.js"></script>
     <script src="JS/libs/ThreeJS/three.js"></script>
     <script src="JS/libs/ThreeJS/GLTFLoader.js"></script>
     <script src="JS/libs/ThreeJS/Clock.js"></script>
     <script src="JS/libs/ThreeJS/FirstPersonControls_CUSTOM.js"></script>
+    <!-- ARTSTATION -->
     <script src="JS/main.js"></script>
 </html>

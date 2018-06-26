@@ -14,6 +14,9 @@ var LOCATION_MESHES = [];
 var WORLDVIEW_POSITION = [new THREE.Vector3(400,2000,0), new THREE.Vector3(-Math.PI/2,0,0)];
 var STATE = IN_WORLDVIEW;
 
+//RESIZE CANVAS WITH WINDOW
+window.addEventListener('resize', resizeCanvas, false);
+
 //SETUP RENDERER
 var renderer = new THREE.WebGLRenderer({canvas: document.getElementById("ARTSTATION_Canvas"), antialias: true});
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -30,6 +33,9 @@ camera.rotation.z = WORLDVIEW_POSITION[1].z;
 
 //SETUP SCENE
 var scene = new THREE.Scene();
+
+//SETUP LOADING MANAGER
+var loading_manager = new THREE.LoadingManager();
 
 //TEMP BACKGROUND
 var path = 'ASSETS/Cubemap/';
@@ -58,12 +64,17 @@ createLocation(
     "st_thomas_head",
     new THREE.Vector3(0,0,0), 
     new THREE.Vector3(-44.1, -35.46, 106.15), 
-    new THREE.Vector3(-0.2258, -0.3901, -0.0520));
+    new THREE.Vector3(-0.16535290788614734, -0.3430805236076698, -0.05607670541902744),
+    new THREE.Vector3(-10.461031678163152,-50.96079960879177,13.262191210414827));
 createLocation(
     "field",
     new THREE.Vector3(800,-50,-400),
     new THREE.Vector3(751.3, -50.5, -316.5), 
-    new THREE.Vector3(-0.1809, -0.5722, -0.1113));
+    new THREE.Vector3(-0.1621988334633824, -0.5794115644192293, -0.08935749132270666),
+    new THREE.Vector3(806,-64,-399));
+
+//LOAD ALL LOCATION MESHES
+loadAllLocations();
 
 //LOAD WORLD VIEW (LOW LOD MODELS)
 loadWorldView();
@@ -90,6 +101,12 @@ scene.add(map_plane_mesh);
 //SPAWN ALL VIDEOS IN WORLD
 spawnAllVideos();
 
+//CONTROLS TEST CUBE
+var cube_geo = new THREE.CubeGeometry(5, 5, 5);
+var cube_mat = new THREE.MeshLambertMaterial({color: 0xffffff, wireframe: true, transparent: true});
+var cube_mesh = new THREE.Mesh(cube_geo, cube_mat);
+//scene.add(cube_mesh); //Enable this to see where the camera is looking at.
+
 //RENDER LOOP
 requestAnimationFrame(render);
 var clock = new THREE.Clock();
@@ -97,13 +114,39 @@ function render() {
     renderer.render(scene, camera);
     camera_controls.update(clock.getDelta());
     TWEEN.update();
+
+    //DEBUG ONLY
+    cube_mesh.position.x = camera_controls.target.x;
+    cube_mesh.position.y = camera_controls.target.y;
+    cube_mesh.position.z = camera_controls.target.z;
+
     requestAnimationFrame(render);
 }
 
+//LOADING BAR
+loading_manager.onProgress = function ( item, loaded, total ) {
+    var percent = loaded / total * 100;
+    $("#ARTSTATION_DynamicProgressStatus").text(Math.round(percent) + "%");
+    if (loaded == total) {
+        $("#ARTSTATION_LoadScreen").fadeOut();
+    }
+};
+
+//LOAD ALL LOCATIONS
+function loadAllLocations() {
+    //Ideally some kind of device test will be carried out here to determine if LOD_HIGH_DETAIL is loaded.
+    //Perhaps LOD_LOW_DETAIL is upped by +1 to load MEDIUM, and MEDIUM to load HIGH?
+    for (var i=0; i < LOCATION.length; i++) {
+        loadLocation(LOCATION[i], LOD_LOW_DETAIL, true); //by default, low LOD is visible on boot.
+        loadLocation(LOCATION[i], LOD_MEDIUM_DETAIL);
+        //loadLocation(LOCATION[i], LOD_HIGH_DETAIL);
+    }
+}
+
 //LOAD LOCATION
-function loadLocation(location, lod) {
+function loadLocation(location, lod, shouldBeVisibleImmediately = false) {
     //IMPORT MODEL
-    var GLTF_Loader = new THREE.GLTFLoader();
+    var GLTF_Loader = new THREE.GLTFLoader(loading_manager);
     GLTF_Loader.load("ASSETS/"+location.Name+"/model_lod"+lod+".gltf", 
     function (GLTF_File) {
         //GRAB MESH FOR INTERACTION
@@ -119,41 +162,50 @@ function loadLocation(location, lod) {
             GLTF_File.scene.position.y = location.WorldSpawn.y;
             GLTF_File.scene.position.z = location.WorldSpawn.z;
             GLTF_File.scene.name = "ARTSTATION_EnvironmentScene";
-
-            //REMOVE OTHER LODS AND ADD CURRENT
-            unloadLocation(location);
-            scene.add(GLTF_File.scene);
+            GLTF_File.scene.visible = shouldBeVisibleImmediately;
 
             //SAVE UUID AND LOD
-            location.UUID = GLTF_File.scene.uuid;
-            location.LOD = lod;
+            location.UUID[lod] = GLTF_File.scene.uuid;
+            if (shouldBeVisibleImmediately) {
+                location.CurrentLOD = lod;
+            }
 
-            console.log("@loadLocation\nAdding: " + location.Name + " LOD " + location.LOD);
+            //ADD TO SCENE
+            scene.add(GLTF_File.scene);
+
+            console.log("@loadLocation\nAdding: " + location.Name + " LOD " + lod + ", visible="+shouldBeVisibleImmediately);
         }
     });
 }
 
-//UNLOAD LOCATION FROM SCENE BY UUID
-function unloadLocation(location) {
-    try {
-        scene.traverse((node) => {       
-            if (node.uuid == location.UUID) {
-                scene.remove(node);
-                console.log("@unloadLocation\nRemoving: " + location.Name + " LOD " + location.LOD);
-            }
-        });
-    } catch { }
+//SWAP TO NEW LOD
+function swapLocationLOD(location, newLOD) {
+    if (location.CurrentLOD != newLOD) {
+        try {
+            scene.traverse((node) => {       
+                if (node.uuid == location.UUID[location.CurrentLOD]) {
+                    node.visible = false;
+                }
+                if (node.uuid == location.UUID[newLOD]) {
+                    node.visible = true;
+                }
+            });
+        } catch { }
+        location.CurrentLOD = newLOD;
+        console.log("@swapLocationLOD\nSwapped to LOD " + newLOD + " for " + location.Name)
+    }
 }
 
 //CREATE LOCATION
-function createLocation(name, worldSpawn, cameraStartPos, cameraStartRot) {
+function createLocation(name, worldSpawn, cameraStartPos, cameraStartRot, cameraStartTarget) {
     var location_data = {
         Name: name,
         WorldSpawn: worldSpawn, 
         CameraStartPos: cameraStartPos,
         CameraStartRot: cameraStartRot,
-        UUID: "X",
-        LOD: "X"
+        CameraStartTarget: cameraStartTarget,
+        UUID: {0: "UNUSED", 1: "UNUSED", 2: "UNUSED"}, //UUID relative to LOD
+        CurrentLOD: "UNUSED"
     };
     LOCATION.push(location_data);
 }
@@ -166,7 +218,7 @@ function loadWorldView() {
 
     //LOAD LOCATIONS IN LOW LOD
     for (var i=0; i < LOCATION.length; i++) {
-        loadLocation(LOCATION[i], LOD_LOW_DETAIL);
+        swapLocationLOD(LOCATION[i], LOD_LOW_DETAIL);
     }
 }
 
@@ -192,8 +244,7 @@ $(document).on("click",function(event) {
                     LOCATION[i].WorldSpawn.y == interacted_model_position.y &&
                     LOCATION[i].WorldSpawn.z == interacted_model_position.z) {
                     //UNLOAD LOW LOD MODEL, LOAD HIGH LOD MODEL
-                    unloadLocation(LOCATION[i]);
-                    loadLocation(LOCATION[i], LOD_MEDIUM_DETAIL);
+                    swapLocationLOD(LOCATION[i], LOD_MEDIUM_DETAIL);
 
                     //MOVE TO LOCATION
                     performCameraTween(camera.position, LOCATION[i].CameraStartPos, 5000);
@@ -202,6 +253,13 @@ $(document).on("click",function(event) {
                     //PLAY VIDEOS IN LOCATION (WIP!!)
                     var video_player = document.getElementById(VIDEO[0].ElementID); 
                     video_player.play(); 
+
+                    //SET CAMERA TARGET
+                    camera_controls.target.x = LOCATION[i].CameraStartTarget.x;
+                    camera_controls.target.y = LOCATION[i].CameraStartTarget.y;
+                    camera_controls.target.z = LOCATION[i].CameraStartTarget.z;
+                    camera_controls.hasJustMovedToEnvironment = true;
+                    console.log(camera_controls.target);
 
                     //SET STATE
                     STATE = IN_ENVIRONMENT;
@@ -333,6 +391,14 @@ function performCameraTween(position, newPosition, duration, enablecamera_contro
                 .onComplete(function() {
                     camera_controls.enabled = enablecamera_controls;
                 }).start();
+}
+
+//RESIZE CANVAS ON WINDOW RESIZE
+function resizeCanvas() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+
+    renderer.setSize( window.innerWidth, window.innerHeight );
 }
 
 //DEBUG - MOVE CAMERA TO VIDEO PLANE (WIP!!)

@@ -49,8 +49,22 @@ THREE.FirstPersonControls = function ( object, domElement ) {
 
 	this.mouseDragOn = false;
 
+	this.hasJustMovedToEnvironment = false;
+
 	this.viewHalfX = 0;
 	this.viewHalfY = 0;
+
+	this.debug_0 = 0;
+	this.debug_1 = 0;
+	this.debug_2 = 0;
+	this.debug_3 = 0;
+	this.debug_4 = 0;
+	this.debug_5 = 0;
+	this.debug_6 = 0;
+	this.debug_7 = 0;
+	this.debug_8 = 0;
+	this.debug_9 = 0;
+	this.debug_10 = 0;
 
 	if ( this.domElement !== document ) {
 
@@ -241,14 +255,31 @@ THREE.FirstPersonControls = function ( object, domElement ) {
 				this.phi = THREE.Math.mapLinear(this.phi, 0, Math.PI, this.verticalMin, this.verticalMax);
 			}
 
-			var targetPosition = this.target,
-				position = this.object.position;
+			this.target = new THREE.Vector3(0,0,0);
+			var position = this.object.position;
 
-			targetPosition.x = position.x + 100 * Math.sin(this.phi) * Math.cos(this.theta);
-			targetPosition.y = position.y + 100 * Math.cos(this.phi);
-			targetPosition.z = position.z + 100 * Math.sin(this.phi) * Math.sin(this.theta);
+			this.target.x = position.x + 100 * Math.sin(this.phi) * Math.cos(this.theta);
+			this.target.y = position.y + 100 * Math.cos(this.phi);
+			this.target.z = position.z + 100 * Math.sin(this.phi) * Math.sin(this.theta);
 
-			this.object.lookAt(targetPosition);
+			this.debug_0 = position.x;
+			this.debug_1 = position.y;
+			this.debug_2 = position.z;
+			this.debug_3 = Math.cos(this.phi);
+			this.debug_4 = Math.sin(this.phi);
+			this.debug_5 = Math.cos(this.theta);
+			this.debug_6 = Math.sin(this.theta);
+			this.debug_7 = this.phi;
+			this.debug_8 = this.theta;
+			this.debug_9 = this.lon;
+			this.debug_10 = this.lat;
+
+			this.object.lookAt(this.target);
+		}
+
+		if (this.hasJustMovedToEnvironment) {
+			this.object.lookAt(this.target);
+			this.hasJustMovedToEnvironment = false;
 		}
 
 	};

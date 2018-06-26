@@ -1,122 +1,186 @@
 {
-    "accessors" : [{
-        "bufferView" : 0,
-        "componentType" : 5125,
-        "count" : 2999997,
-        "max" : [591128],
-        "min" : [0],
-        "type" : "SCALAR"
-    },{
-        "bufferView" : 1,
-        "componentType" : 5126,
-        "count" : 591129,
-        "max" : [84.1647,-39.4645,121.808],
-        "min" : [-68.2056,-64.9267,-129.387],
-        "type" : "VEC3"
-    },{
-        "bufferView" : 2,
-        "componentType" : 5126,
-        "count" : 591129,
-        "max" : [0.999817,0.999969,0.999969],
-        "min" : [-0.999817,-0.999939,-0.999969],
-        "type" : "VEC3"
-    },{
-        "bufferView" : 3,
-        "componentType" : 5126,
-        "count" : 591129,
-        "max" : [0.999999,0.999904,0.999996,1],
-        "min" : [-0.999993,-1,-0.999999,-1],
-        "type" : "VEC4"
-    },{
-        "bufferView" : 4,
-        "componentType" : 5126,
-        "count" : 591129,
-        "max" : [0.999493,0.999493],
-        "min" : [0.000506864,0.000507295],
-        "type" : "VEC2"
-    }],
+    "accessors" : [
+        {
+            "bufferView" : 0,
+            "componentType" : 5125,
+            "count" : 299994,
+            "max" : [
+                85088
+            ],
+            "min" : [
+                0
+            ],
+            "type" : "SCALAR"
+        },
+        {
+            "bufferView" : 1,
+            "componentType" : 5126,
+            "count" : 85089,
+            "max" : [
+                84.16995239257812,
+                -39.412105560302734,
+                121.8034896850586
+            ],
+            "min" : [
+                -68.18714904785156,
+                -64.9202651977539,
+                -129.39239501953125
+            ],
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 2,
+            "componentType" : 5126,
+            "count" : 85089,
+            "max" : [
+                0.999664306640625,
+                0.999969482421875,
+                0.9986266493797302
+            ],
+            "min" : [
+                -0.999053955078125,
+                -0.9986266493797302,
+                -0.99945068359375
+            ],
+            "type" : "VEC3"
+        },
+        {
+            "bufferView" : 3,
+            "componentType" : 5126,
+            "count" : 85089,
+            "max" : [
+                0.999994158744812,
+                0.9992254972457886,
+                0.9999961853027344,
+                1.0
+            ],
+            "min" : [
+                -0.9999995231628418,
+                -0.9999342560768127,
+                -0.9999956488609314,
+                -1.0
+            ],
+            "type" : "VEC4"
+        },
+        {
+            "bufferView" : 4,
+            "componentType" : 5126,
+            "count" : 85089,
+            "max" : [
+                0.9994930624961853,
+                0.9994931358960457
+            ],
+            "min" : [
+                0.0005068649770691991,
+                0.0005095601081848145
+            ],
+            "type" : "VEC2"
+        }
+    ],
     "asset" : {
         "generator" : "Khronos Blender glTF 2.0 exporter",
         "version" : "2.0"
     },
-    "bufferViews" : [{
-        "buffer" : 0,
-        "byteLength" : 11999988,
-        "byteOffset" : 0,
-        "target" : 34963
-    },{
-        "buffer" : 0,
-        "byteLength" : 7093548,
-        "byteOffset" : 11999988,
-        "target" : 34962
-    },{
-        "buffer" : 0,
-        "byteLength" : 7093548,
-        "byteOffset" : 19093536,
-        "target" : 34962
-    },{
-        "buffer" : 0,
-        "byteLength" : 9458064,
-        "byteOffset" : 26187084,
-        "target" : 34962
-    },{
-        "buffer" : 0,
-        "byteLength" : 4729032,
-        "byteOffset" : 35645148,
-        "target" : 34962
-    }],
-    "buffers" : [{
-        "byteLength" : 40374180,
-        "uri" : "model_lod1.bin"
-    }],
-    "images" : [{
-        "name" : "texture_file",
-        "uri" : "texture_file_lod1.jpg"
-    }],
-    "materials" : [{
-        "name" : "texture_material",
-        "pbrMetallicRoughness" : {
-            "baseColorFactor" : [0.8,0.8,0.8,1],
-            "baseColorTexture" : {
-                "index" : 0
-            },
-            "metallicFactor" : 0
+    "bufferViews" : [
+        {
+            "buffer" : 0,
+            "byteLength" : 1199976,
+            "byteOffset" : 0,
+            "target" : 34963
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 1021068,
+            "byteOffset" : 1199976,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 1021068,
+            "byteOffset" : 2221044,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 1361424,
+            "byteOffset" : 3242112,
+            "target" : 34962
+        },
+        {
+            "buffer" : 0,
+            "byteLength" : 680712,
+            "byteOffset" : 4603536,
+            "target" : 34962
         }
-    }],
-    "meshes" : [{
-        "name" : "mesh_out",
-        "primitives" : [{
-            "attributes" : {
-                "NORMAL" : 2,
-                "POSITION" : 1,
-                "TANGENT" : 3,
-                "TEXCOORD_0" : 4
-            },
-            "indices" : 0,
-            "material" : 0
-        }]
-    }],
-    "nodes" : [{
-        "name" : "Camera",
-        "rotation" : [0.483536,0.336872,-0.208704,0.780483],
-        "translation" : [7.48113,5.34367,6.50764]
-    },{
-        "name" : "Lamp",
-        "rotation" : [0.169076,0.75588,-0.272171,0.570948],
-        "scale" : [1,1,1],
-        "translation" : [4.07625,5.90386,-1.00545]
-    },{
-        "mesh" : 0,
-        "name" : "mesh_out_node"
-    }],
-    "samplers" : [{}],
+    ],
+    "buffers" : [
+        {
+            "byteLength" : 5284248,
+            "uri" : "model_lod1.bin"
+        }
+    ],
+    "images" : [
+        {
+            "name" : "texture_file",
+            "uri" : "texture_file_lod1.jpg"
+        }
+    ],
+    "materials" : [
+        {
+            "name" : "texture_material.001",
+            "pbrMetallicRoughness" : {
+                "baseColorFactor" : [
+                    0.800000011920929,
+                    0.800000011920929,
+                    0.800000011920929,
+                    1.0
+                ],
+                "baseColorTexture" : {
+                    "index" : 0
+                },
+                "metallicFactor" : 0.0
+            }
+        }
+    ],
+    "meshes" : [
+        {
+            "name" : "mesh_out.001",
+            "primitives" : [
+                {
+                    "attributes" : {
+                        "NORMAL" : 2,
+                        "POSITION" : 1,
+                        "TANGENT" : 3,
+                        "TEXCOORD_0" : 4
+                    },
+                    "indices" : 0,
+                    "material" : 0
+                }
+            ]
+        }
+    ],
+    "nodes" : [
+        {
+            "mesh" : 0,
+            "name" : "mesh_out_node"
+        }
+    ],
+    "samplers" : [
+        {}
+    ],
     "scene" : 0,
-    "scenes" : [{
-        "name" : "Scene",
-        "nodes" : [2,1,0]
-    }],
-    "textures" : [{
-        "sampler" : 0,
-        "source" : 0
-    }]
+    "scenes" : [
+        {
+            "name" : "Scene",
+            "nodes" : [
+                0
+            ]
+        }
+    ],
+    "textures" : [
+        {
+            "sampler" : 0,
+            "source" : 0
+        }
+    ]
 }
