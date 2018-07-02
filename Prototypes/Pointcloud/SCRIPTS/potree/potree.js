@@ -14875,6 +14875,8 @@ void main() {
 			this.radiusDelta = 0;
 
 			this.didClickEnvironment = false; //MFILER-290618
+			this.clickedEnvironmentUUID = null; //MFILER-020718
+			this.isEnabled = false; //MFILER-020718
 
 			this.tweens = [];
 
@@ -14920,7 +14922,7 @@ void main() {
 			};
 
 			let dblclick = (e) => {
-				this.zoomToLocation(e.mouse);
+				//this.zoomToLocation(e.mouse); - MFILER-020718: Disabled double click zooming.
 			};
 
 			let previousTouch = null;
@@ -14997,6 +14999,7 @@ void main() {
 		
 		zoomToLocation(mouse){
 			this.didClickEnvironment = false; //MFILER-290618
+			this.clickedEnvironmentUUID = null; //MFILER-020718
 
 			let camera = this.scene.getActiveCamera();
 			
@@ -15011,6 +15014,7 @@ void main() {
 				return;
 			}
 			this.didClickEnvironment = true; //MFILER-290618
+			this.clickedEnvironmentUUID = I.pointcloud.uuid; //MFILER-020718
 
 			let targetRadius = 0;
 			{
@@ -15068,64 +15072,66 @@ void main() {
 		}
 
 		update (delta) {
-			let view = this.scene.view;
+			if (this.isEnabled) { //MFILER-020718
+				let view = this.scene.view;
 
-			{ // apply rotation
-				let progression = Math.min(1, this.fadeFactor * delta);
+				{ // apply rotation
+					let progression = Math.min(1, this.fadeFactor * delta);
 
-				let yaw = view.yaw;
-				let pitch = view.pitch;
-				let pivot = view.getPivot();
+					let yaw = view.yaw;
+					let pitch = view.pitch;
+					let pivot = view.getPivot();
 
-				yaw -= progression * this.yawDelta;
-				pitch -= progression * this.pitchDelta;
+					yaw -= progression * this.yawDelta;
+					pitch -= progression * this.pitchDelta;
 
-				view.yaw = yaw;
-				view.pitch = pitch;
+					view.yaw = yaw;
+					view.pitch = pitch;
 
-				let V = this.scene.view.direction.multiplyScalar(-view.radius);
-				let position = new THREE.Vector3().addVectors(pivot, V);
+					let V = this.scene.view.direction.multiplyScalar(-view.radius);
+					let position = new THREE.Vector3().addVectors(pivot, V);
 
-				view.position.copy(position);
-			}
+					view.position.copy(position);
+				}
 
-			{ // apply pan
-				let progression = Math.min(1, this.fadeFactor * delta);
-				let panDistance = progression * view.radius * 3;
+				{ // apply pan
+					let progression = Math.min(1, this.fadeFactor * delta);
+					let panDistance = progression * view.radius * 3;
 
-				let px = -this.panDelta.x * panDistance;
-				let py = this.panDelta.y * panDistance;
+					let px = -this.panDelta.x * panDistance;
+					let py = this.panDelta.y * panDistance;
 
-				view.pan(px, py);
-			}
+					view.pan(px, py);
+				}
 
-			{ // apply zoom
-				let progression = Math.min(1, this.fadeFactor * delta);
+				{ // apply zoom
+					let progression = Math.min(1, this.fadeFactor * delta);
 
-				// let radius = view.radius + progression * this.radiusDelta * view.radius * 0.1;
-				let radius = view.radius + progression * this.radiusDelta;
+					// let radius = view.radius + progression * this.radiusDelta * view.radius * 0.1;
+					let radius = view.radius + progression * this.radiusDelta;
 
-				let V = view.direction.multiplyScalar(-radius);
-				let position = new THREE.Vector3().addVectors(view.getPivot(), V);
-				view.radius = radius;
+					let V = view.direction.multiplyScalar(-radius);
+					let position = new THREE.Vector3().addVectors(view.getPivot(), V);
+					view.radius = radius;
 
-				view.position.copy(position);
-			}
+					view.position.copy(position);
+				}
 
-			{
-				let speed = view.radius / 2.5;
-				this.viewer.setMoveSpeed(speed);
-			}
+				{
+					let speed = view.radius / 2.5;
+					this.viewer.setMoveSpeed(speed);
+				}
 
-			{ // decelerate over time
-				let progression = Math.min(1, this.fadeFactor * delta);
-				let attenuation = Math.max(0, 1 - this.fadeFactor * delta);
+				{ // decelerate over time
+					let progression = Math.min(1, this.fadeFactor * delta);
+					let attenuation = Math.max(0, 1 - this.fadeFactor * delta);
 
-				this.yawDelta *= attenuation;
-				this.pitchDelta *= attenuation;
-				this.panDelta.multiplyScalar(attenuation);
-				// this.radiusDelta *= attenuation;
-				this.radiusDelta -= progression * this.radiusDelta;
+					this.yawDelta *= attenuation;
+					this.pitchDelta *= attenuation;
+					this.panDelta.multiplyScalar(attenuation);
+					// this.radiusDelta *= attenuation;
+					this.radiusDelta -= progression * this.radiusDelta;
+				}
 			}
 		}
 	}
