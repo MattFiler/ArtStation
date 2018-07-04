@@ -11,10 +11,43 @@
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/spectrum/spectrum.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/jstree/themes/mixed/style.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/Cesium/Widgets/CesiumWidget/CesiumWidget.css">
+
+	<style>
+		video {
+			display:none;
+		}
+		.potree_container {
+			z-index: 0;
+			position: absolute; 
+			width: 100%; 
+			height: 100%; 
+			left: 0px; 
+			top: 0px; 
+		}
+		#cesiumContainer {
+			position: absolute;
+			width: 100%; 
+			height: 100%; 
+			background-color:green;
+		}
+		.cesium-widget-credits {
+			display: none;
+		}
+		.DollyButton {
+			position:absolute;
+			top:0;
+			right:0;
+			z-index:999;
+		}
+		.DollyZoomIn {
+			padding-right: 100px;
+		}
+	</style>
 </head>
 
 <body>
 	<script src="SCRIPTS/jquery/jquery-3.1.1.min.js"></script>
+	<script src="SCRIPTS/localforage/localforage.js"></script>
 	<script src="SCRIPTS/spectrum/spectrum.js"></script>
 	<script src="SCRIPTS/perfect-scrollbar/js/perfect-scrollbar.jquery.js"></script>
 	<script src="SCRIPTS/jquery-ui/jquery-ui.min.js"></script>
@@ -32,17 +65,21 @@
 	<script src="SCRIPTS/taylorc/geoutm.js"></script>
 	<!--<script src="SCRIPTS/ARTSTATION/main.js"></script>-->
 
-	<div class="potree_container" style="position: absolute; width: 100%; height: 100%; left: 0px; top: 0px; ">
+	<button class="DollyButton DollyZoomIn">ZOOM IN</button>
+	<button class="DollyButton DollyZoomOut">ZOOM OUT</button>
+
+	<div class="potree_container">
 		<div id="potree_render_area">
-			<div id="cesiumContainer" style="position: absolute; width: 100%; height: 100%; background-color:green"></div>			
+			<div id="cesiumContainer"></div>			
 		</div>
 		<!--<div id="potree_sidebar_container"> </div>-->
 	</div>	
 
 	<script>
-		//DEFINE DATA ARRAYS
+		//DEFINE DATA STORES
 		var VIDEO = [];
 		var LOCATION = [];
+		var DOLLY_COUNTER = [0,0];
 
 		//DEFINE STATES
 		var IN_WORLDVIEW = 0;
@@ -57,14 +94,18 @@
 		//CONFIGURE POTREE VIEWER
 		viewer.setEDLEnabled(true);
 		viewer.setFOV(60);
-		viewer.setPointBudget(1*1000*1000);
-		viewer.setDescription("CONTROLS: LMB - ENTER ENV & PAN // RMB - DRAG // ENTER - EXIT ENV");
+		viewer.setPointBudget(1*1000*1000); //VARY THIS PER PLATFORM
+		viewer.setDescription("CONTROLS: LMB - ENTER ENV & PAN // LMB (X2) - MOVE FOCUS IN ENV // ENTER - EXIT ENV");
+		viewer.setEDLEnabled(false);
+		/*
 		viewer.setEDLEnabled(true);
 		viewer.setEDLRadius(1.5);
 		viewer.setEDLStrength(0.1);
+		*/
 		viewer.setBackground(null); 
 		viewer.loadSettingsFromURL();
-		viewer.useHQ = true;
+		viewer.useHQ = true; //VARY THIS PER PLATFORM
+		viewer.setMinNodeSize(200); //VARY THIS PER PLATFORM
 
 		//DEFINE CESIUM VIEWER
 		window.cesiumViewer = new Cesium.Viewer('cesiumContainer', {
@@ -79,7 +120,10 @@
 			selectionIndicator: false,
 			timeline: false,
 			navigationHelpButton: false,
-			imageryProvider : Cesium.BingMapsImageryProvider({url : '//dev.virtualearth.net'}),
+			imageryProvider : Cesium.BingMapsImageryProvider({
+				mapStyle: Cesium.BingMapsStyle.CANVAS_DARK,
+				url : '//dev.virtualearth.net', 
+			}),
 			terrainShadows: Cesium.ShadowMode.DISABLED,
 		});
 
@@ -111,9 +155,6 @@
 		//LOAD ST THOMAS HEAD
 		loadLocation("st_thomas_head");
 		createVideo("st_thomas_head", "DJI_0023");
-
-		//SET TO "WORLD VIEW"
-		viewer.setView("U");
 
 
 		//------------------------------------
@@ -312,7 +353,7 @@
 		        mouse.y = event.clientY;
 				controls.zoomToLocation(mouse);
 				if (controls.didClickEnvironment) {
-		        	controls.isEnabled = true;
+		        	controls.worldViewCameraConfig = false;
 
 					setState(IN_ENVIRONMENT);
 
@@ -338,11 +379,10 @@
 			    if(keycode == '13'){
 		            setState(IN_WORLDVIEW);
 
-					viewer.fitToScreen();
-					viewer.setView("U");
+					viewer.fitToScreen(1, 600);
 
 					var controls = viewer.getControls(viewer.scene.view.navigationMode);
-					controls.isEnabled = false;
+					controls.worldViewCameraConfig = true;
 
 					for (var i = 0; i < VIDEO.length; i++) {
 						stopVideo(i);
@@ -370,6 +410,30 @@
 			video_player.currentTime = 0;
     		try { viewer.scene.scene.traverse((node) => { if (node.uuid == VIDEO[video_id].UUID) { node.visible = false; } }); } catch { }
 		}
+
+		//DOLLY ZOOM IN
+		$(".DollyZoomIn").on("click",function(event) {
+			if (STATE != IN_WORLDVIEW) {
+				if (DOLLY_COUNTER[0] <= 2) {
+					DOLLY_COUNTER[0]++;
+					DOLLY_COUNTER[1]--;
+					var controls = viewer.getControls(viewer.scene.view.navigationMode);
+					controls.dollyCamera(2);
+				}
+			}
+		});
+
+		//DOLLY ZOOM OUT
+		$(".DollyZoomOut").on("click",function(event) {
+			if (STATE != IN_WORLDVIEW) {
+				if (DOLLY_COUNTER[1] <= 2) {
+					DOLLY_COUNTER[0]--;
+					DOLLY_COUNTER[1]++;
+					var controls = viewer.getControls(viewer.scene.view.navigationMode);
+					controls.dollyCamera(-2);
+				}
+			}
+		});
 	</script>
 </body>
 </html>

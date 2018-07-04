@@ -1,3 +1,65 @@
+//MFILER-040718 START
+
+//Configure LocalForge for saving pointcloud data locally
+var LOCAL_DATA_STORE = localforage.createInstance({
+  name: "ARTSTATION"
+});
+LOCAL_DATA_STORE.setDriver(localforage.INDEXEDDB);
+
+//Data debugging
+var CONTENTDEBUG__ASSET_ARRAY = [];
+var CONTENTDEBUG__WASTED_ASSET_COUNT = 0;
+var CONTENTDEBUG__WASTED_MEMORY_COUNT = 0.0;
+var CONTENTDEBUG__TOTAL_ASSET_COUNT = 0;
+var CONTENTDEBUG__TOTAL_MEMORY_COUNT = 0.0;
+function checkForWastedResources(url, xhr) {
+	/*
+	//Count up the total resources loaded (no matter if needed or not)
+	CONTENTDEBUG__TOTAL_MEMORY_COUNT += parseFloat(xhr.getResponseHeader("Content-Length"));
+	CONTENTDEBUG__TOTAL_ASSET_COUNT++;
+
+	//Count how many times this asset has already been loaded
+	var already_loaded_counter = 0;
+	for (var i=0; i<CONTENTDEBUG__ASSET_ARRAY.length;i++) {
+		if (CONTENTDEBUG__ASSET_ARRAY[i] == url) {
+			already_loaded_counter++;
+		}
+	}
+
+	//If has been loaded already, log the filesize as waste
+	if (already_loaded_counter > 0) {
+		CONTENTDEBUG__WASTED_ASSET_COUNT++;
+		CONTENTDEBUG__WASTED_MEMORY_COUNT += parseFloat(xhr.getResponseHeader("Content-Length"));
+	}
+
+	//Show waste statistics
+	var wasteMB = (CONTENTDEBUG__WASTED_MEMORY_COUNT / 1000000).toFixed(1);
+	var nonWasteMB = ((CONTENTDEBUG__TOTAL_MEMORY_COUNT - CONTENTDEBUG__WASTED_MEMORY_COUNT) / 1000000).toFixed(1);
+	var wastePercent = ((CONTENTDEBUG__WASTED_MEMORY_COUNT/CONTENTDEBUG__TOTAL_MEMORY_COUNT) * 100).toFixed(1);
+	console.log(
+		"Loaded " + CONTENTDEBUG__WASTED_ASSET_COUNT + " assets that are duplicates: " + wasteMB + "mb wasted!\n" + 
+		"Only needed to load " + (CONTENTDEBUG__TOTAL_ASSET_COUNT - CONTENTDEBUG__WASTED_ASSET_COUNT) + " assets: " + nonWasteMB + "mb!"
+	);
+	var wasteMessage = wastePercent + "% of page load is waste!";
+	if (wastePercent < 25) {
+		//Page waste is less than 25% of load
+		console.log(wasteMessage);
+	} else {
+		if (wastePercent > 50) {
+			//Page waste is more than 50% of load
+			console.error(wasteMessage);
+		} else {
+			//Page waste is more than 25% of load
+			console.warn(wasteMessage);
+		}
+	}
+	
+	//Log item URL to check if it occurs again
+	CONTENTDEBUG__ASSET_ARRAY.push(url);
+	*/
+}
+//MFILER-040718 END
+
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -3826,6 +3888,8 @@
 						if (xhr.status === 200 || xhr.status === 0) {
 							let greyhoundHierarchy = JSON.parse(xhr.responseText) || { };
 							callback(that, greyhoundHierarchy);
+
+							checkForWastedResources(hurl, xhr); //MFILER-040718
 						} else {
 							console.log(
 								'Failed to load file! HTTP status:', xhr.status,
@@ -4084,6 +4148,9 @@
 						if (xhr.status === 200 || xhr.status === 0) {
 							let hbuffer = xhr.response;
 							callback(node, hbuffer);
+
+							checkForWastedResources(hurl, xhr); //MFILER-040718
+
 						} else {
 							console.log('Failed to load file! HTTP status: ' + xhr.status + ', file: ' + hurl);
 							Potree.numNodesLoading--;
@@ -10825,27 +10892,44 @@ void main() {
 				url += '.bin';
 			}
 
-			let xhr = XHRFactory.createXMLHttpRequest();
-			xhr.open('GET', url, true);
-			xhr.responseType = 'arraybuffer';
-			xhr.overrideMimeType('text/plain; charset=x-user-defined');
-			xhr.onreadystatechange = () => {
-				if (xhr.readyState === 4) {
-					if((xhr.status === 200 || xhr.status === 0) &&  xhr.response !== null){
-						let buffer = xhr.response;
-						this.parse(node, buffer);
-					} else {
-						throw new Error(`Failed to load file! HTTP status: ${xhr.status}, file: ${url}`);
-					}
+			//MFILER-040718 START: Reworked BinaryLoader to save & load from local IndexedDB rather than pull from server constantly.
+			var already_loaded_counter = 0;
+			for (var i=0; i<CONTENTDEBUG__ASSET_ARRAY.length;i++) {
+				if (CONTENTDEBUG__ASSET_ARRAY[i] == url) {
+					already_loaded_counter++;
+					break;
 				}
-			};
-			
-			try {
-				xhr.send(null);
-			} catch (e) {
-				//MFILER-290618: Swapping to English translation.
-				console.log('Error while loading: ' + e);
 			}
+
+			var thisIsMe = this;
+			if (already_loaded_counter == 0) {
+				CONTENTDEBUG__ASSET_ARRAY.push(url);
+
+				let xhr = XHRFactory.createXMLHttpRequest();
+				xhr.open('GET', url, true);
+				xhr.responseType = 'arraybuffer';
+				xhr.overrideMimeType('text/plain; charset=x-user-defined');
+				xhr.onreadystatechange = () => {
+					if (xhr.readyState === 4) {
+						if((xhr.status === 200 || xhr.status === 0) &&  xhr.response !== null){
+							LOCAL_DATA_STORE.setItem(url, xhr.response).then(function(value) { thisIsMe.parse(node, value); });
+						} else {
+							throw new Error(`Failed to load file! HTTP status: ${xhr.status}, file: ${url}`);
+						}
+					}
+				};
+
+				try {
+					xhr.send(null);
+				} catch (e) {
+					console.log('Error while loading: ' + e);
+				}
+			}
+			else
+			{
+				var returned_data = LOCAL_DATA_STORE.getItem(url).then(function(value) { thisIsMe.parse(node, value); });
+			}
+			//MFILER-040718 END
 		};
 
 		parse(node, buffer){
@@ -10949,6 +11033,8 @@ void main() {
 
 				xhr.onreadystatechange = function () {
 					if (xhr.readyState === 4 && (xhr.status === 200 || xhr.status === 0)) {
+						checkForWastedResources(url, xhr); //MFILER-040718
+
 						let fMno = JSON.parse(xhr.responseText);
 
 						let version = new Version(fMno.version);
@@ -11121,6 +11207,8 @@ void main() {
 					if (xhr.status === 200 || xhr.status === 0) {
 						let buffer = xhr.response;
 						scope.parse(node, buffer);
+
+						checkForWastedResources(url, xhr); //MFILER-040718
 					} else {
 						console.log(
 							'Failed to load file! HTTP status:', xhr.status,
@@ -11275,6 +11363,8 @@ void main() {
 				if (xhr.readyState === 4) {
 					if (xhr.status === 200 || xhr.status === 0) {
 						cb(null, xhr.responseText);
+
+						checkForWastedResources(url, xhr); //MFILER-040718
 					} else {
 						cb(xhr.responseText);
 					}
@@ -11291,6 +11381,8 @@ void main() {
 				if (xhr.readyState === 4) {
 					if (xhr.status === 200 || xhr.status === 0) {
 						cb(null, xhr.response);
+
+						checkForWastedResources(url, xhr); //MFILER-040718
 					}				else {
 						cb(xhr.responseText);
 					}
@@ -14870,13 +14962,15 @@ void main() {
 
 			this.fadeFactor = 10;
 			this.yawDelta = 0;
-			this.pitchDelta = 0;
+			this.pitchDelta = -0.5; //MFILER-040718
 			this.panDelta = new THREE.Vector2(0, 0);
 			this.radiusDelta = 0;
 
 			this.didClickEnvironment = false; //MFILER-290618
 			this.clickedEnvironmentUUID = null; //MFILER-020718
-			this.isEnabled = false; //MFILER-020718
+			this.isEnabled = true; //MFILER-020718
+			this.scrollZoomEnabled = false; //MFILER-040718
+			this.worldViewCameraConfig = true; //MFILER-040718
 
 			this.tweens = [];
 
@@ -14897,15 +14991,26 @@ void main() {
 				};
 
 				if (e.drag.mouse === MOUSE.LEFT) {
-					this.yawDelta += ndrag.x * this.rotationSpeed;
-					this.pitchDelta += ndrag.y * this.rotationSpeed;
+					//MFILER-040718 START: Reworked camera orbit controls
+					if (this.worldViewCameraConfig) {
+						this.yawDelta += ndrag.x * (this.rotationSpeed / 4);
+					}
+					else
+					{
+						this.yawDelta += ndrag.x * this.rotationSpeed;
+					}
+					//this.pitchDelta += ndrag.y * this.rotationSpeed;
+					//MFILER-040718 END
 
 					this.stopTweens();
 				} else if (e.drag.mouse === MOUSE.RIGHT) {
+					//MFILER-040718: Removing support for right mouse movement
+					/*
 					this.panDelta.x += ndrag.x;
 					this.panDelta.y += ndrag.y;
 
 					this.stopTweens();
+					*/
 				}
 			};
 
@@ -14914,15 +15019,17 @@ void main() {
 			};
 
 			let scroll = (e) => {
-				let resolvedRadius = this.scene.view.radius + this.radiusDelta;
+				if (this.scrollZoomEnabled) { //MFILER-040718
+					let resolvedRadius = this.scene.view.radius + this.radiusDelta;
 
-				this.radiusDelta += -e.delta * resolvedRadius * 0.1;
+					this.radiusDelta += -e.delta * resolvedRadius * 0.1;
 
-				this.stopTweens();
+					this.stopTweens();
+				}
 			};
 
 			let dblclick = (e) => {
-				//this.zoomToLocation(e.mouse); - MFILER-020718: Disabled double click zooming.
+				this.zoomToLocation(e.mouse, false); //MFILER-040718: Re-enabled zoomToLocation with no actual zoom.
 			};
 
 			let previousTouch = null;
@@ -14992,12 +15099,24 @@ void main() {
 
 		stop(){
 			this.yawDelta = 0;
-			this.pitchDelta = 0;
+			//this.pitchDelta = 0; - MFILER-040718
 			this.radiusDelta = 0;
 			this.panDelta.set(0, 0);
 		}
+
+		//MFILER-040718 START: Add "dollyCamera" to replace manual zooming functionality
+		dollyCamera (dollyAmount) {
+			if (this.isEnabled && !this.scrollZoomEnabled) {
+				if (!this.worldViewCameraConfig) {
+					let resolvedRadius = this.scene.view.radius + this.radiusDelta;
+					this.radiusDelta += -dollyAmount * resolvedRadius * 0.1;
+					this.stopTweens();
+				}
+			}
+		}
+		//MFILER-040718 END
 		
-		zoomToLocation(mouse){
+		zoomToLocation(mouse, shouldActuallyZoom=true){ //MFILER-040718: shouldActuallyZoom
 			this.didClickEnvironment = false; //MFILER-290618
 			this.clickedEnvironmentUUID = null; //MFILER-020718
 
@@ -15030,6 +15149,12 @@ void main() {
 				targetRadius = Math.max(minimumJumpDistance, targetRadius);
 			}
 
+			//MFILER-040718 START
+			if (!shouldActuallyZoom) {
+				targetRadius = this.scene.view.radius;
+			}
+			//MFILER-040718 END
+
 			let d = this.scene.view.direction.multiplyScalar(-1);
 			let cameraTargetPosition = new THREE.Vector3().addVectors(I.location, d.multiplyScalar(targetRadius));
 			// TODO Unused: let controlsTargetPosition = I.location;
@@ -15054,7 +15179,9 @@ void main() {
 					this.scene.view.position.y = (1 - t) * startPos.y + t * targetPos.y;
 					this.scene.view.position.z = (1 - t) * startPos.z + t * targetPos.z;
 
-					this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
+					if (shouldActuallyZoom) { //MFILER-040718
+						this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
+					}
 					this.viewer.setMoveSpeed(this.scene.view.radius / 2.5);
 				});
 
@@ -15079,14 +15206,14 @@ void main() {
 					let progression = Math.min(1, this.fadeFactor * delta);
 
 					let yaw = view.yaw;
-					let pitch = view.pitch;
+					//let pitch = view.pitch; - MFILER-040718
 					let pivot = view.getPivot();
 
 					yaw -= progression * this.yawDelta;
-					pitch -= progression * this.pitchDelta;
+					//pitch -= progression * this.pitchDelta; - MFILER-040718
 
 					view.yaw = yaw;
-					view.pitch = pitch;
+					//view.pitch = pitch; - MFILER-040718
 
 					let V = this.scene.view.direction.multiplyScalar(-view.radius);
 					let position = new THREE.Vector3().addVectors(pivot, V);
@@ -15127,7 +15254,7 @@ void main() {
 					let attenuation = Math.max(0, 1 - this.fadeFactor * delta);
 
 					this.yawDelta *= attenuation;
-					this.pitchDelta *= attenuation;
+					//this.pitchDelta *= attenuation; - MFILER-040718
 					this.panDelta.multiplyScalar(attenuation);
 					// this.radiusDelta *= attenuation;
 					this.radiusDelta -= progression * this.radiusDelta;
