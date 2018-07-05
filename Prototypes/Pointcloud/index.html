@@ -4,6 +4,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 	<title>ARTSTATION Pointcloud Test</title>
 
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/bootstrap/css/bootstrap.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/font-awesome/css/all.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/potree/potree.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/jquery-ui/jquery-ui.min.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/perfect-scrollbar/css/perfect-scrollbar.css">
@@ -35,18 +37,27 @@
 		}
 		.DollyButton {
 			position:absolute;
-			top:0;
-			right:0;
-			z-index:999;
+			bottom:0;
+			left:0;
+			z-index:900;
+			border-radius: 0 !important;
+			outline: none !important;
 		}
-		.DollyZoomIn {
-			padding-right: 100px;
+		.DollyZoomOut {
+			margin-left: 42px;
+		}
+		.modal-backdrop {
+			z-index: 950;
+		}
+		#ARTSTATION_ControlPanel {
+			z-index: 999;
 		}
 	</style>
 </head>
 
 <body>
 	<script src="SCRIPTS/jquery/jquery-3.1.1.min.js"></script>
+	<script src="SCRIPTS/bootstrap/js/bootstrap.js"></script>
 	<script src="SCRIPTS/localforage/localforage.js"></script>
 	<script src="SCRIPTS/spectrum/spectrum.js"></script>
 	<script src="SCRIPTS/perfect-scrollbar/js/perfect-scrollbar.jquery.js"></script>
@@ -63,10 +74,42 @@
 	<script src="SCRIPTS/plasio/js/laslaz.js"></script>
 	<script src="SCRIPTS/Cesium/Cesium.js"></script>
 	<script src="SCRIPTS/taylorc/geoutm.js"></script>
+	<script src="SCRIPTS/mobile-detect/mobile-detect.js"></script>
+	<script src="SCRIPTS/stats/stats.js"></script>
 	<!--<script src="SCRIPTS/ARTSTATION/main.js"></script>-->
 
-	<button class="DollyButton DollyZoomIn">ZOOM IN</button>
-	<button class="DollyButton DollyZoomOut">ZOOM OUT</button>
+	<button class="DollyButton DollyZoomIn btn" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();">
+		<i class="fas fa-search-plus"></i>
+	</button>
+	<button class="DollyButton DollyZoomOut btn" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();">
+		<i class="fas fa-search-minus"></i>
+	</button>
+
+	<div class="modal fade" id="ARTSTATION_ControlPanel">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<!-- Modal Header -->
+				<div class="modal-header">
+					<h4 class="modal-title">ARTSTATION Controls</h4>
+					<button type="button" class="close" data-dismiss="modal">&times;</button>
+				</div>
+				<!-- Modal body -->
+				<div class="modal-body">
+					<ul>
+						<li>Click on an environment to enter it.</li>
+						<li>Double click within an environment to move.</li>
+						<li>Use left mouse down to rotate camera.</li>
+						<li>Zoom in/out with the buttons in the bottom left.</li>
+						<li>Press enter to leave an environment.</li>
+					</ul>
+				</div>
+				<!-- Modal footer -->
+				<div class="modal-footer">
+					<button type="button" class="btn btn-success" data-dismiss="modal">OK</button>
+				</div>
+			</div>
+		</div>
+	</div>
 
 	<div class="potree_container">
 		<div id="potree_render_area">
@@ -76,14 +119,19 @@
 	</div>	
 
 	<script>
+		//SHOW CONTROLS MODAL (WIP)
+		$("#ARTSTATION_ControlPanel").modal("show");
+
 		//DEFINE DATA STORES
 		var VIDEO = [];
 		var LOCATION = [];
 		var DOLLY_COUNTER = [0,0];
+		var LOADING_PROGRESS = 0;
 
 		//DEFINE STATES
 		var IN_WORLDVIEW = 0;
 		var IN_ENVIRONMENT = 1;
+		var IS_TRANSITIONING = 2;
 		var STATE = IN_WORLDVIEW;
 
 		//DEFINE POTREE VIEWER
@@ -91,21 +139,31 @@
 			useDefaultRenderLoop: false
 		});
 
-		//CONFIGURE POTREE VIEWER
-		viewer.setEDLEnabled(true);
+		//CONFIGURE POTREE VIEWER PER DEVICE
+		var device = new MobileDetect(window.navigator.userAgent);
+		var OPTIMISATION_PointBudget = 1*1000*1000;
+		var OPTIMISATION_MinNodeSize = 200;
+		var OPTIMISATION_UseHQ = true;
+		if (device.mobile() != null) {
+			//Mobile device
+			OPTIMISATION_MinNodeSize = 500;
+			OPTIMISATION_UseHQ = false;
+			OPTIMISATION_PointBudget = 1*1000*500; 
+		}
+		if (device.mobileGrade() != "A") {
+			//Device is not A-Grade by jQuery standards
+			OPTIMISATION_MinNodeSize = 700;
+			OPTIMISATION_UseHQ = false;
+			OPTIMISATION_PointBudget = 1*1000*100; 
+		}
 		viewer.setFOV(60);
-		viewer.setPointBudget(1*1000*1000); //VARY THIS PER PLATFORM
-		viewer.setDescription("CONTROLS: LMB - ENTER ENV & PAN // LMB (X2) - MOVE FOCUS IN ENV // ENTER - EXIT ENV");
+		viewer.setPointBudget(OPTIMISATION_PointBudget); 
 		viewer.setEDLEnabled(false);
-		/*
-		viewer.setEDLEnabled(true);
-		viewer.setEDLRadius(1.5);
-		viewer.setEDLStrength(0.1);
-		*/
 		viewer.setBackground(null); 
 		viewer.loadSettingsFromURL();
-		viewer.useHQ = true; //VARY THIS PER PLATFORM
-		viewer.setMinNodeSize(200); //VARY THIS PER PLATFORM
+		viewer.useHQ = OPTIMISATION_UseHQ;
+		viewer.setMinNodeSize(OPTIMISATION_MinNodeSize);
+		//console.log("Optimisation result:\nPOINT BUDGET - " + OPTIMISATION_PointBudget + "\nMIN NODE SIZE - " + OPTIMISATION_MinNodeSize + "\nSHOULD USE HQ - " + OPTIMISATION_UseHQ)
 
 		//DEFINE CESIUM VIEWER
 		window.cesiumViewer = new Cesium.Viewer('cesiumContainer', {
@@ -120,11 +178,15 @@
 			selectionIndicator: false,
 			timeline: false,
 			navigationHelpButton: false,
-			imageryProvider : Cesium.BingMapsImageryProvider({
-				mapStyle: Cesium.BingMapsStyle.CANVAS_DARK,
-				url : '//dev.virtualearth.net', 
-			}),
-			terrainShadows: Cesium.ShadowMode.DISABLED,
+			imageryProvider : Cesium.createOpenStreetMapImageryProvider({url : 'https://a.tile.openstreetmap.org/'}),
+			//imageryProvider : Cesium.BingMapsImageryProvider({
+			//	mapStyle: Cesium.BingMapsStyle.CANVAS_DARK,
+			//	url : '//dev.virtualearth.net', 
+			//}),
+			terrainShadows: Cesium.ShadowMode.ENABLED,
+			terrainProvider: Cesium.createWorldTerrain({
+			    requestVertexNormals: true
+			})
 		});
 
 		//CONFIGURE CESIUM VIEWER
@@ -138,6 +200,11 @@
 			}
 		});
 
+		//SHOW DEBUG STATS
+		var stats = new Stats();
+		stats.showPanel(0);
+		document.body.appendChild( stats.dom );
+
 		/*
 		viewer.loadGUI(() => {
 			viewer.setLanguage('en');
@@ -149,12 +216,22 @@
 		*/
 
 		//LOAD FIELD
-		loadLocation("field");
-		createVideo("field", "edited");
+		loadLocation(
+			"field", 
+			45, 
+			function(location) { 
+				createVideo(location, "edited"); 
+			}
+		);
 
 		//LOAD ST THOMAS HEAD
-		loadLocation("st_thomas_head");
-		createVideo("st_thomas_head", "DJI_0023");
+		loadLocation(
+			"st_thomas_head", 
+			42, 
+			function(location) { 
+				createVideo(location, "DJI_0023"); 
+			}
+		);
 
 
 		//------------------------------------
@@ -162,6 +239,7 @@
 		//RENDER LOOP
 		function loop(timestamp){
 			requestAnimationFrame(loop);
+			stats.begin();
 			viewer.update(viewer.clock.getDelta(), timestamp);
 			viewer.render();
 			if(window.toMap !== undefined){
@@ -212,16 +290,17 @@
 				}
 			}
 			cesiumViewer.render();
+			stats.end();
 		}
 		requestAnimationFrame(loop);
 
 		//LOAD LOCATION POINTCLOUD INTO VIEWER
-		function loadLocation(locationName) {
+		function loadLocation(locationName, zOffset=0, callback=function(){}) {
 		        Potree.loadPointCloud("ASSETS/POINTCLOUDS/"+locationName+"/cloud.js", locationName, e => {
 		                let pointcloud = e.pointcloud;
 		                let material = pointcloud.material;
 
-		                pointcloud.position.z = 0;
+		                pointcloud.position.z = zOffset;
 
 		                viewer.scene.addPointCloud(pointcloud);
 		                material.pointColorType = Potree.PointColorType.RGB;
@@ -232,13 +311,14 @@
 
 					    var location_data = {
 					        Name: locationName,
-					        UUID: e.pointcloud.uuid
+					        UUID: e.pointcloud.uuid,
+					        Z_Offset: zOffset
 					    };
-					    LOCATION.push(location_data);
+					    var location_data_length = LOCATION.push(location_data);
 
 						Potree.measureTimings = true;
 						
-						//TODO: Zone may need to be calculated per-location in future depending on the scale of the application, geoutm.js can do this. For now, we're fine with 30.
+						//Zone 30U covers most of England and Wales so we should be fine with this - geoutm.js can always calculate for us.
 						let pointcloudProjection = "+proj=utm +zone=30 +ellps=GRS80 +datum=NAD83 +units=m +no_defs";
 						let mapProjection = proj4.defs("WGS84");
 
@@ -251,15 +331,17 @@
 							let minWGS84 = proj4(pointcloudProjection, mapProjection, bb.min.toArray());
 							let maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
 						}
+
+						callback(location_data_length - 1);
 		        });
 		}
 
 		//CREATE A VIDEO IN WORLD
-		function createVideo(location, videoName) {
+		function createVideo(locationIndex, videoName) {
 		    //CREATE VIDEO ELEMENT
 		    var video_element = document.createElement("video");
-		    video_element.src = "ASSETS/VIDEOS/"+location+"/"+videoName+".mp4";
-		    video_element.id = location+"_"+videoName;
+		    video_element.src = "ASSETS/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
+		    video_element.id = LOCATION[locationIndex].Name+"_"+videoName;
 		    video_element.autoplay = false;
 		    video_element.loop = true;
 		    video_element.volume = 0;
@@ -268,7 +350,7 @@
 
 		    //CREATE VIDEO MESH
 		    var video_plane = new THREE.PlaneGeometry(20, 12, 1, 1);
-		    var video_elem = document.getElementById(location+"_"+videoName);
+		    var video_elem = document.getElementById(LOCATION[locationIndex].Name+"_"+videoName);
 		    var video_texture = new THREE.VideoTexture(video_elem);
 		    video_texture.minFilter = THREE.LinearFilter;
 		    video_texture.magFilter = THREE.LinearFilter;
@@ -277,9 +359,9 @@
 		    var video_plane_mesh = new THREE.Mesh(video_plane, video_material);
 		    video_plane_mesh.material.side = THREE.DoubleSide;
 		    video_plane_mesh.name = "ARTSTATION_VideoPlane";
-		    video_plane_mesh.position.x = 512635;
-		    video_plane_mesh.position.y = 5694955;
-		    video_plane_mesh.position.z = -85;
+		    video_plane_mesh.position.x = 0;
+		    video_plane_mesh.position.y = 0;
+		    video_plane_mesh.position.z = 0;
 		    video_plane_mesh.rotation.y = Math.PI / 2;
 		    video_plane_mesh.rotation.z = Math.PI / 2;
 		    video_plane_mesh.visible = false;
@@ -287,7 +369,7 @@
 
 		    //GET VIDEO POSITION DATA
 		    var video_position_data = [];
-		    var video_position_data_path = "API/gps_parser.php?location=" + location + "&srt=" + videoName; //REMOTE
+		    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&srt=" + videoName; //REMOTE
 		    //var video_position_data_path = "API/gps_parser.json"; //LOCAL
 		    $.getJSON(video_position_data_path, function(data) {
 		        $.each(data, function(key, val) {
@@ -298,16 +380,15 @@
 		    //ADD VIDEO TO GLOBAL VIDEO ARRAY
 		    var video_data = {
 		        Name: videoName,
-		        ElementID: location+"_"+videoName,
-		        Location: location, 
+		        ElementID: LOCATION[locationIndex].Name+"_"+videoName,
+		        LocationDataIndex: locationIndex, 
 		        UUID: video_plane_mesh.uuid,
 		        PositionArray: video_position_data
 		    };
-		    VIDEO.push(video_data);
-		    var video_index = VIDEO.length - 1;
+		    var video_data_length = VIDEO.push(video_data);
 
 		    //MOVE VIDEO FROM GPS
-		    moveVideoFromGPS(video_index);
+		    moveVideoFromGPS(video_data_length - 1);
 		}
 
 		//MOVE VIDEO ON TIME UPDATE FROM GPS DATA
@@ -327,7 +408,7 @@
 		                            VIDEO[video_index].PositionArray[major_time_milestone+1][1], 
 		                            VIDEO[video_index].PositionArray[major_time_milestone+1][3]);
 		                        var coords = ConvertToUTM(new_position.x, new_position.y);
-		                        var NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25);
+		                        var NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset);
 
 		                    	if (first_run) {
 		                    		node.position.x = NEW_POSITION.x;
@@ -344,33 +425,39 @@
 		    });
 		}
 
-		//MOVE TO LOCATION ON CLICK
+		//HANDLE CLICK OR TOUCH
+		$(document).on("click",function(event) {
+			handleClickInput([event.clientX, event.clientY]);
+		});
+		$(document).on("touchstart", function(event){ 
+			handleClickInput([event.originalEvent.touches[0].pageX, event.originalEvent.touches[0].pageY]);
+		});
+
+		//MOVE TO LOCATION DEPENDING ON INPUT LOCATION
 		var mouse = new THREE.Vector2();
 		var controls = viewer.getControls(viewer.scene.view.navigationMode);
-		$(document).on("click",function(event) {
+		function handleClickInput(position) {
 			if (STATE == IN_WORLDVIEW) {
-		        mouse.x = event.clientX;
-		        mouse.y = event.clientY;
-				controls.zoomToLocation(mouse);
+		        mouse.x = position[0];
+		        mouse.y = position[1];
+				controls.zoomToLocation(mouse, true, 600, true, function() {
+					if (controls.didClickEnvironment) {
+			        	controls.worldViewCameraConfig = false;
+
+						setState(IN_ENVIRONMENT);
+
+						for (var i = 0; i < VIDEO.length; i++) {
+							if (LOCATION[VIDEO[i].LocationDataIndex].UUID == controls.clickedEnvironmentUUID) {
+								playVideo(i);
+							}
+						}
+					}
+				});
 				if (controls.didClickEnvironment) {
-		        	controls.worldViewCameraConfig = false;
-
-					setState(IN_ENVIRONMENT);
-
-					var clicked_location_name = "";
-					for (var i = 0; i < LOCATION.length; i++) {
-						if (LOCATION[i].UUID == controls.clickedEnvironmentUUID) {
-							clicked_location_name = LOCATION[i].Name;
-						}
-					}
-					for (var i = 0; i < VIDEO.length; i++) {
-						if (VIDEO[i].Location == clicked_location_name) {
-							playVideo(i);
-						}
-					}
+					setState(IS_TRANSITIONING);
 				}
 			}
-		});
+		}
 
 		//MOVE BACK TO "WORLD VIEW" ON PRESS OF KEY (ENTER)
 		$(document).keypress(function(e) {
@@ -380,6 +467,8 @@
 		            setState(IN_WORLDVIEW);
 
 					viewer.fitToScreen(1, 600);
+
+					DOLLY_COUNTER = [0,0];
 
 					var controls = viewer.getControls(viewer.scene.view.navigationMode);
 					controls.worldViewCameraConfig = true;
@@ -412,28 +501,40 @@
 		}
 
 		//DOLLY ZOOM IN
-		$(".DollyZoomIn").on("click",function(event) {
+		var DOLLY_ZOOM_IN = null;
+		function DollyZoomIn() {
 			if (STATE != IN_WORLDVIEW) {
-				if (DOLLY_COUNTER[0] <= 2) {
-					DOLLY_COUNTER[0]++;
-					DOLLY_COUNTER[1]--;
-					var controls = viewer.getControls(viewer.scene.view.navigationMode);
-					controls.dollyCamera(2);
-				}
+				DOLLY_ZOOM_IN = setInterval(function(){
+					if (DOLLY_COUNTER[0] <= 70) {
+						DOLLY_COUNTER[0]++;
+						DOLLY_COUNTER[1]--;
+						var controls = viewer.getControls(viewer.scene.view.navigationMode);
+						controls.dollyCamera(0.2);
+					}
+				}, 50);
 			}
-		});
+		}
 
 		//DOLLY ZOOM OUT
-		$(".DollyZoomOut").on("click",function(event) {
+		var DOLLY_ZOOM_OUT = null;
+		function DollyZoomOut() {
 			if (STATE != IN_WORLDVIEW) {
-				if (DOLLY_COUNTER[1] <= 2) {
-					DOLLY_COUNTER[0]--;
-					DOLLY_COUNTER[1]++;
-					var controls = viewer.getControls(viewer.scene.view.navigationMode);
-					controls.dollyCamera(-2);
-				}
+				DOLLY_ZOOM_OUT = setInterval(function(){
+					if (DOLLY_COUNTER[1] <= 20) {
+						DOLLY_COUNTER[0]--;
+						DOLLY_COUNTER[1]++;
+						var controls = viewer.getControls(viewer.scene.view.navigationMode);
+						controls.dollyCamera(-0.2);
+					}
+				}, 50);
 			}
-		});
+		}
+
+		//STOP DOLLY ZOOM
+		function StopDollyZoom() {
+			clearInterval(DOLLY_ZOOM_IN);
+			clearInterval(DOLLY_ZOOM_OUT);
+		}
 	</script>
 </body>
 </html>

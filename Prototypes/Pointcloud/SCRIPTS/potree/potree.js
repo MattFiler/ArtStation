@@ -14397,6 +14397,7 @@ void main() {
 				magFilter: THREE.NearestFilter,
 				format: THREE.RGBAFormat,
 				type: THREE.FloatType,
+				//texture: new THREE.TextureLoader().load("replace_me_asset.png") //MFILER-050718: Test of non-black EDL shader?
 				depthTexture: new THREE.DepthTexture(undefined, undefined, THREE.UnsignedIntType)
 			});
 
@@ -14971,51 +14972,56 @@ void main() {
 			this.isEnabled = true; //MFILER-020718
 			this.scrollZoomEnabled = false; //MFILER-040718
 			this.worldViewCameraConfig = true; //MFILER-040718
+			this.isTransitioning = false; //MFILER-050718
 
 			this.tweens = [];
 
 			let drag = (e) => {
-				if (e.drag.object !== null) {
-					return;
-				}
-
-				if (e.drag.startHandled === undefined) {
-					e.drag.startHandled = true;
-
-					this.dispatchEvent({type: 'start'});
-				}
-
-				let ndrag = {
-					x: e.drag.lastDrag.x / this.renderer.domElement.clientWidth,
-					y: e.drag.lastDrag.y / this.renderer.domElement.clientHeight
-				};
-
-				if (e.drag.mouse === MOUSE.LEFT) {
-					//MFILER-040718 START: Reworked camera orbit controls
-					if (this.worldViewCameraConfig) {
-						this.yawDelta += ndrag.x * (this.rotationSpeed / 4);
+				if (!this.isTransitioning) { //MFILER-050718
+					if (e.drag.object !== null) {
+						return;
 					}
-					else
-					{
-						this.yawDelta += ndrag.x * this.rotationSpeed;
+
+					if (e.drag.startHandled === undefined) {
+						e.drag.startHandled = true;
+
+						this.dispatchEvent({type: 'start'});
 					}
-					//this.pitchDelta += ndrag.y * this.rotationSpeed;
-					//MFILER-040718 END
 
-					this.stopTweens();
-				} else if (e.drag.mouse === MOUSE.RIGHT) {
-					//MFILER-040718: Removing support for right mouse movement
-					/*
-					this.panDelta.x += ndrag.x;
-					this.panDelta.y += ndrag.y;
+					let ndrag = {
+						x: e.drag.lastDrag.x / this.renderer.domElement.clientWidth,
+						y: e.drag.lastDrag.y / this.renderer.domElement.clientHeight
+					};
 
-					this.stopTweens();
-					*/
+					if (e.drag.mouse === MOUSE.LEFT) {
+						//MFILER-040718 START: Reworked camera orbit controls
+						if (this.worldViewCameraConfig) {
+							this.yawDelta += ndrag.x * (this.rotationSpeed / 4);
+						}
+						else
+						{
+							this.yawDelta += ndrag.x * this.rotationSpeed;
+						}
+						//this.pitchDelta += ndrag.y * this.rotationSpeed;
+						//MFILER-040718 END
+
+						this.stopTweens();
+					} else if (e.drag.mouse === MOUSE.RIGHT) {
+						//MFILER-040718: Removing support for right mouse movement
+						/*
+						this.panDelta.x += ndrag.x;
+						this.panDelta.y += ndrag.y;
+
+						this.stopTweens();
+						*/
+					}
 				}
 			};
 
 			let drop = e => {
-				this.dispatchEvent({type: 'end'});
+				if (!this.isTransitioning) { //MFILER-050718
+					this.dispatchEvent({type: 'end'});
+				}
 			};
 
 			let scroll = (e) => {
@@ -15029,7 +15035,11 @@ void main() {
 			};
 
 			let dblclick = (e) => {
-				this.zoomToLocation(e.mouse, false); //MFILER-040718: Re-enabled zoomToLocation with no actual zoom.
+				//MFILER-040718 START: Re-enabled zoomToLocation with no actual zoom, only in world view.
+				if (!this.worldViewCameraConfig && !this.isTransitioning) {
+					this.zoomToLocation(e.mouse, false, 1500); //MFILER-050718: Upped movement duration from 600ms to 1500ms
+				}
+				//MFILER-040718 END
 			};
 
 			let previousTouch = null;
@@ -15116,7 +15126,7 @@ void main() {
 		}
 		//MFILER-040718 END
 		
-		zoomToLocation(mouse, shouldActuallyZoom=true){ //MFILER-040718: shouldActuallyZoom
+		zoomToLocation(mouse, shouldActuallyZoom=true, animationDuration=600, shouldStopInteraction=false, callback=function(){}){ //MFILER-040718: shouldActuallyZoom, MFILER-050718: shouldStopInteraction, animationDuration, callback
 			this.didClickEnvironment = false; //MFILER-290618
 			this.clickedEnvironmentUUID = null; //MFILER-020718
 
@@ -15159,7 +15169,7 @@ void main() {
 			let cameraTargetPosition = new THREE.Vector3().addVectors(I.location, d.multiplyScalar(targetRadius));
 			// TODO Unused: let controlsTargetPosition = I.location;
 
-			let animationDuration = 600;
+			//let animationDuration = 600; - MFILER-050718: Now a function parameter.
 			let easing = TWEEN.Easing.Quartic.Out;
 
 			{ // animate
@@ -15183,10 +15193,14 @@ void main() {
 						this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
 					}
 					this.viewer.setMoveSpeed(this.scene.view.radius / 2.5);
+
+					this.isTransitioning = shouldStopInteraction; //MFILER-050718
 				});
 
 				tween.onComplete(() => {
 					this.tweens = this.tweens.filter(e => e !== tween);
+					this.isTransitioning = false; //MFILER-050718
+					callback(); //MFILER-050718: Adding callback to prevent double-clicks before entering environment.
 				});
 
 				tween.start();
@@ -22236,35 +22250,16 @@ ENDSEC
 			$(this.renderArea).empty();
 
 			if ($(this.renderArea).find('#potree_failpage').length === 0) {
+				//MFILER-050718 START: Changing crash text for ARTSTATION
 				let elFailPage = $(`
 			<div id="#potree_failpage" class="potree_failpage"> 
-				
-				<h1>Potree Encountered An Error </h1>
-
-				<p>
-				This may happen if your browser or graphics card is not supported.
-				<br>
-				We recommend to use 
-				<a href="https://www.google.com/chrome/browser" target="_blank" style="color:initial">Chrome</a>
-				or 
-				<a href="https://www.mozilla.org/" target="_blank">Firefox</a>.
-				</p>
-
-				<p>
-				Please also visit <a href="http://webglreport.com/" target="_blank">webglreport.com</a> and 
-				check whether your system supports WebGL.
-				</p>
-				<p>
-				If you are already using one of the recommended browsers and WebGL is enabled, 
-				consider filing an issue report at <a href="https://github.com/potree/potree/issues" target="_blank">github</a>,<br>
-				including your operating system, graphics card, browser and browser version, as well as the 
-				error message below.<br>
-				Please do not report errors on unsupported browsers.
-				</p>
-
+				<h1>ARTSTATION Application Crashed!</h1>
+				<p>You may have run out of memory, or your system may not support WebGL.</p>
+				<p>A full error log will be generated below.</p>
+				<hr>
 				<pre id="potree_error_console" style="width: 100%; height: 100%"></pre>
-				
 			</div>`);
+				//MFILER-050718 END
 
 				let elErrorMessage = elFailPage.find('#potree_error_console');
 				elErrorMessage.html(error.stack);
