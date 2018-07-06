@@ -14973,6 +14973,7 @@ void main() {
 			this.scrollZoomEnabled = false; //MFILER-040718
 			this.worldViewCameraConfig = true; //MFILER-040718
 			this.isTransitioning = false; //MFILER-050718
+			this.focusPoint = null; //MFILER-060718
 
 			this.tweens = [];
 
@@ -15126,7 +15127,7 @@ void main() {
 		}
 		//MFILER-040718 END
 		
-		zoomToLocation(mouse, shouldActuallyZoom=true, animationDuration=600, shouldStopInteraction=false, callback=function(){}){ //MFILER-040718: shouldActuallyZoom, MFILER-050718: shouldStopInteraction, animationDuration, callback
+		zoomToLocation(mouse, shouldActuallyZoom=true, animationDuration=600, shouldStopInteraction=false, callback=function(){}, mouseSubstitute=null){ //MFILER-040718: shouldActuallyZoom, MFILER-050718: shouldStopInteraction - animationDuration - callback, MFILER-060718: mouseSubstitute
 			this.didClickEnvironment = false; //MFILER-290618
 			this.clickedEnvironmentUUID = null; //MFILER-020718
 
@@ -15139,11 +15140,15 @@ void main() {
 				this.scene.pointclouds,
 				{pickClipped: true});
 
-			if (I === null) {
+			if (I == null && mouseSubstitute == null) { //MFILER-060718
 				return;
+			}
+			if (mouseSubstitute != null) {
+				I = mouseSubstitute;
 			}
 			this.didClickEnvironment = true; //MFILER-290618
 			this.clickedEnvironmentUUID = I.pointcloud.uuid; //MFILER-020718
+			this.focusPoint = I.location; //MFILER-060718
 
 			let targetRadius = 0;
 			{
@@ -17150,7 +17155,7 @@ void main() {
 		}
 
 		initTHREE () {
-			this.renderer = new THREE.WebGLRenderer({alpha: true, premultipliedAlpha: false});
+			this.renderer = new THREE.WebGLRenderer({alpha: true, premultipliedAlpha: false, antialias: true});
 			this.renderer.setClearColor(0x000000, 0);
 			this.renderer.setSize(10, 10);
 			this.renderer.autoClear = true;

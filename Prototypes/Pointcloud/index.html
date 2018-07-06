@@ -52,6 +52,9 @@
 		#ARTSTATION_ControlPanel {
 			z-index: 999;
 		}
+		.annotation-label {
+			text-transform: capitalize;
+		}
 	</style>
 </head>
 
@@ -127,11 +130,14 @@
 		var LOCATION = [];
 		var DOLLY_COUNTER = [0,0];
 		var LOADING_PROGRESS = 0;
+		var CAMERA_UNLOCK_DATA = {yaw: 0, _pitch: 0, maxPitch: 0, minPitch: 0, radius: 0, pitch: 0, focusPoint: (0,0,0)};
 
 		//DEFINE STATES
 		var IN_WORLDVIEW = 0;
 		var IN_ENVIRONMENT = 1;
-		var IS_TRANSITIONING = 2;
+		var IS_TRANSITIONING_TO_ENVIRONMENT = 2;
+		var IS_TRACKING_VIDEO = 3;
+		var IS_TRANSITIONING_TO_VIDEO = 4;
 		var STATE = IN_WORLDVIEW;
 
 		//DEFINE POTREE VIEWER
@@ -141,27 +147,28 @@
 
 		//CONFIGURE POTREE VIEWER PER DEVICE
 		var device = new MobileDetect(window.navigator.userAgent);
-		var OPTIMISATION_PointBudget = 1*1000*1000;
-		var OPTIMISATION_MinNodeSize = 200;
+		var OPTIMISATION_PointBudget = 1000000;
+		var OPTIMISATION_MinNodeSize = 100;
 		var OPTIMISATION_UseHQ = true;
 		if (device.mobile() != null) {
 			//Mobile device
-			OPTIMISATION_MinNodeSize = 500;
+			OPTIMISATION_MinNodeSize = 200;
 			OPTIMISATION_UseHQ = false;
-			OPTIMISATION_PointBudget = 1*1000*500; 
+			OPTIMISATION_PointBudget = 100000; 
 		}
 		if (device.mobileGrade() != "A") {
 			//Device is not A-Grade by jQuery standards
-			OPTIMISATION_MinNodeSize = 700;
+			OPTIMISATION_MinNodeSize = 300;
 			OPTIMISATION_UseHQ = false;
-			OPTIMISATION_PointBudget = 1*1000*100; 
+			OPTIMISATION_PointBudget = 50000; 
 		}
 		viewer.setFOV(60);
 		viewer.setPointBudget(OPTIMISATION_PointBudget); 
 		viewer.setEDLEnabled(false);
 		viewer.setBackground(null); 
 		viewer.loadSettingsFromURL();
-		viewer.useHQ = OPTIMISATION_UseHQ;
+		//viewer.useHQ = OPTIMISATION_UseHQ;
+		viewer.useHQ = false; //"ART STYLE" is squares, so HQ must be disabled.
 		viewer.setMinNodeSize(OPTIMISATION_MinNodeSize);
 		//console.log("Optimisation result:\nPOINT BUDGET - " + OPTIMISATION_PointBudget + "\nMIN NODE SIZE - " + OPTIMISATION_MinNodeSize + "\nSHOULD USE HQ - " + OPTIMISATION_UseHQ)
 
@@ -240,6 +247,13 @@
 		function loop(timestamp){
 			requestAnimationFrame(loop);
 			stats.begin();
+			if (STATE == IN_WORLDVIEW || STATE == IS_TRANSITIONING_TO_ENVIRONMENT) {
+				$(".annotation").show();
+			}
+			else
+			{
+				$(".annotation").hide();
+			}
 			viewer.update(viewer.clock.getDelta(), timestamp);
 			viewer.render();
 			if(window.toMap !== undefined){
@@ -296,7 +310,7 @@
 
 		//LOAD LOCATION POINTCLOUD INTO VIEWER
 		function loadLocation(locationName, zOffset=0, callback=function(){}) {
-		        Potree.loadPointCloud("ASSETS/POINTCLOUDS/"+locationName+"/cloud.js", locationName, e => {
+		        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/"+locationName+"/cloud.js", locationName, e => {
 		                let pointcloud = e.pointcloud;
 		                let material = pointcloud.material;
 
@@ -306,15 +320,23 @@
 		                material.pointColorType = Potree.PointColorType.RGB;
 		                material.size = 1;
 		                material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-		                material.shape = Potree.PointShape.CIRCLE;
+		                //material.shape = Potree.PointShape.CIRCLE;
 		                viewer.fitToScreen();
 
 					    var location_data = {
 					        Name: locationName,
-					        UUID: e.pointcloud.uuid,
+					        UUID: pointcloud.uuid,
 					        Z_Offset: zOffset
 					    };
 					    var location_data_length = LOCATION.push(location_data);
+
+					    {
+							let locationAnnotation = new Potree.Annotation({
+								position: pointcloud.position,
+								title: locationName.replace(/_/g, " "),
+							});
+							viewer.scene.annotations.add(locationAnnotation);
+						}
 
 						Potree.measureTimings = true;
 						
@@ -340,12 +362,13 @@
 		function createVideo(locationIndex, videoName) {
 		    //CREATE VIDEO ELEMENT
 		    var video_element = document.createElement("video");
-		    video_element.src = "ASSETS/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
+		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
 		    video_element.id = LOCATION[locationIndex].Name+"_"+videoName;
 		    video_element.autoplay = false;
 		    video_element.loop = true;
 		    video_element.volume = 0;
 		    video_element.muted = true;
+		    video_element.crossOrigin = 'anonymous';
 		    document.body.appendChild(video_element);
 
 		    //CREATE VIDEO MESH
@@ -383,7 +406,8 @@
 		        ElementID: LOCATION[locationIndex].Name+"_"+videoName,
 		        LocationDataIndex: locationIndex, 
 		        UUID: video_plane_mesh.uuid,
-		        PositionArray: video_position_data
+		        PositionArray: video_position_data,
+		        LockCamera: false
 		    };
 		    var video_data_length = VIDEO.push(video_data);
 
@@ -396,6 +420,8 @@
 		    var major_time_milestone = 0;
 		    var previous_acted_milestone = -1;
 		    var first_run = true;
+		    var camera_is_locked = false;
+			var controls = viewer.getControls(viewer.scene.view.navigationMode);
 		    $("#"+VIDEO[video_index].ElementID).on("timeupdate", function(event){
 		        major_time_milestone = Math.floor(this.currentTime);
 		        if (major_time_milestone != previous_acted_milestone) {
@@ -408,15 +434,65 @@
 		                            VIDEO[video_index].PositionArray[major_time_milestone+1][1], 
 		                            VIDEO[video_index].PositionArray[major_time_milestone+1][3]);
 		                        var coords = ConvertToUTM(new_position.x, new_position.y);
-		                        var NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset);
+		                        var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset);
 
 		                    	if (first_run) {
-		                    		node.position.x = NEW_POSITION.x;
-		                    		node.position.y = NEW_POSITION.y;
-		                    		node.position.z = NEW_POSITION.z;
+		                    		node.position.x = VIDEO_NEW_POSITION.x;
+		                    		node.position.y = VIDEO_NEW_POSITION.y;
+		                    		node.position.z = VIDEO_NEW_POSITION.z;
 		                    		first_run = false;
 		                    	} else {
-		                        	var tween = new TWEEN.Tween(node.position).to(NEW_POSITION, 1000).start();
+		                        	new TWEEN.Tween(node.position).to(VIDEO_NEW_POSITION, 1000).start();
+		                    	}
+
+		                    	//LOCK CAMERA TO VIDEO WHEN REQUESTED
+		                    	if (VIDEO[video_index].LockCamera) {
+									$(".annotation").hide();
+		                    		controls.isTransitioning = true;
+		                    		camera_is_locked = true;
+		                    		setState(IS_TRACKING_VIDEO);
+
+		                        	var CAMERA_NEW_POSITION = new THREE.Vector3(VIDEO_NEW_POSITION.x - 20, VIDEO_NEW_POSITION.y, VIDEO_NEW_POSITION.z);
+		                        	
+		                        	var CAMERA_TWEEN = new TWEEN.Tween(viewer.scene.view.position).to(CAMERA_NEW_POSITION, 1000);
+									CAMERA_TWEEN.onUpdate(() => {
+										viewer.scene.view.lookAt(node.position);
+									});
+									CAMERA_TWEEN.onComplete(() => {
+										if (!VIDEO[video_index].LockCamera && camera_is_locked) {
+											viewer.scene.view.yaw = CAMERA_UNLOCK_DATA.yaw;
+											viewer.scene.view._pitch = CAMERA_UNLOCK_DATA._pitch;
+											viewer.scene.view.maxPitch = CAMERA_UNLOCK_DATA.maxPitch;
+											viewer.scene.view.minPitch = CAMERA_UNLOCK_DATA.minPitch;
+											viewer.scene.view.pitch = CAMERA_UNLOCK_DATA.pitch;
+											viewer.scene.view.radius = CAMERA_UNLOCK_DATA.radius;
+
+											var current_pointcloud = null;
+											for (var i=0; i<viewer.scene.pointclouds.length;i++) {
+												if (viewer.scene.pointclouds[i].uuid == controls.clickedEnvironmentUUID) {
+													current_pointcloud = viewer.scene.pointclouds[i];
+												}
+											}
+
+											controls.zoomToLocation({x:0,y:0}, false, 1000, true, function() {}, {
+												distance: 100, 
+												location: CAMERA_UNLOCK_DATA.focusPoint, 
+												point: {position: CAMERA_UNLOCK_DATA.focusPoint}, 
+												pointcloud: current_pointcloud
+											});
+
+											//pauseVideo(video_index);
+											setState(IN_ENVIRONMENT);
+											controls.isTransitioning = false;
+											camera_is_locked = false;
+										}
+										else
+										{
+		                    				setState(IS_TRACKING_VIDEO);
+											viewer.scene.view.lookAt(node.position);
+										}
+									});
+									CAMERA_TWEEN.start();
 		                    	}
 		                    }
 		                });
@@ -432,12 +508,11 @@
 		$(document).on("touchstart", function(event){ 
 			handleClickInput([event.originalEvent.touches[0].pageX, event.originalEvent.touches[0].pageY]);
 		});
-
-		//MOVE TO LOCATION DEPENDING ON INPUT LOCATION
 		var mouse = new THREE.Vector2();
 		var controls = viewer.getControls(viewer.scene.view.navigationMode);
 		function handleClickInput(position) {
 			if (STATE == IN_WORLDVIEW) {
+				//MOVE TO LOCATION DEPENDING ON INPUT LOCATION
 		        mouse.x = position[0];
 		        mouse.y = position[1];
 				controls.zoomToLocation(mouse, true, 600, true, function() {
@@ -449,12 +524,56 @@
 						for (var i = 0; i < VIDEO.length; i++) {
 							if (LOCATION[VIDEO[i].LocationDataIndex].UUID == controls.clickedEnvironmentUUID) {
 								playVideo(i);
+								//pauseVideo(i);
 							}
 						}
 					}
 				});
 				if (controls.didClickEnvironment) {
-					setState(IS_TRANSITIONING);
+					setState(IS_TRANSITIONING_TO_ENVIRONMENT);
+					$(".annotation").fadeOut(600);
+				}
+			}
+			if (STATE == IN_ENVIRONMENT || STATE == IS_TRACKING_VIDEO) {
+				//MOVE TO VIDEO DEPENDING ON INPUT LOCATION
+				mouse.x = ( position[0] / window.innerWidth ) * 2 - 1;
+				mouse.y = - ( position[1] / window.innerHeight ) * 2 + 1;
+
+				var raycaster = new THREE.Raycaster();
+				raycaster.setFromCamera(mouse, viewer.scene.getActiveCamera());
+
+				var video_planes = [];
+				for (var i=0; i<viewer.scene.scene.children.length; i++) {
+					if (viewer.scene.scene.children[i].name == "ARTSTATION_VideoPlane") {
+						video_planes.push(viewer.scene.scene.children[i]);
+					}
+				}
+
+				var intersects = raycaster.intersectObjects(video_planes);
+				for (var i=0; i<intersects.length; i++) {
+					for (var x=0; x<VIDEO.length;x++) {
+						if (VIDEO[x].UUID == intersects[i].object.uuid) {
+							if (VIDEO[x].LockCamera == false) {
+								setState(IS_TRANSITIONING_TO_VIDEO);
+								controls.isTransitioning = true;
+								CAMERA_UNLOCK_DATA.yaw = viewer.scene.view.yaw;
+								CAMERA_UNLOCK_DATA._pitch = viewer.scene.view._pitch;
+								CAMERA_UNLOCK_DATA.maxPitch = viewer.scene.view.maxPitch;
+								CAMERA_UNLOCK_DATA.minPitch = viewer.scene.view.minPitch;
+								CAMERA_UNLOCK_DATA.radius = viewer.scene.view.radius;
+								CAMERA_UNLOCK_DATA.pitch = viewer.scene.view.pitch;
+								CAMERA_UNLOCK_DATA.focusPoint = controls.focusPoint;
+								VIDEO[x].LockCamera = true;
+								//playVideo(x);
+							}
+							else
+							{
+								setState(IS_TRANSITIONING_TO_VIDEO);
+								controls.isTransitioning = true;
+								VIDEO[x].LockCamera = false;
+							}
+						}	
+					}
 				}
 			}
 		}
@@ -476,6 +595,8 @@
 					for (var i = 0; i < VIDEO.length; i++) {
 						stopVideo(i);
 					}
+
+					$(".annotation").fadeIn(600);
 			    }
 			}
 		});
@@ -500,10 +621,16 @@
     		try { viewer.scene.scene.traverse((node) => { if (node.uuid == VIDEO[video_id].UUID) { node.visible = false; } }); } catch { }
 		}
 
+		//PAUSE VIDEO
+		function pauseVideo(video_id) {
+			var video_player = document.getElementById(VIDEO[video_id].ElementID); 
+			video_player.pause();
+		}
+
 		//DOLLY ZOOM IN
 		var DOLLY_ZOOM_IN = null;
 		function DollyZoomIn() {
-			if (STATE != IN_WORLDVIEW) {
+			if (STATE == IN_ENVIRONMENT) {
 				DOLLY_ZOOM_IN = setInterval(function(){
 					if (DOLLY_COUNTER[0] <= 70) {
 						DOLLY_COUNTER[0]++;
@@ -518,9 +645,9 @@
 		//DOLLY ZOOM OUT
 		var DOLLY_ZOOM_OUT = null;
 		function DollyZoomOut() {
-			if (STATE != IN_WORLDVIEW) {
+			if (STATE == IN_ENVIRONMENT) {
 				DOLLY_ZOOM_OUT = setInterval(function(){
-					if (DOLLY_COUNTER[1] <= 20) {
+					if (DOLLY_COUNTER[1] <= 30) {
 						DOLLY_COUNTER[0]--;
 						DOLLY_COUNTER[1]++;
 						var controls = viewer.getControls(viewer.scene.view.navigationMode);

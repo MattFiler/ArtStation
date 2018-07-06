@@ -1,6 +1,6 @@
 <?php
 	header('Content-Type: application/json');
-	$raw_data = file_get_contents("../ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['srt'] . ".srt");
+	$raw_data = file_get_contents("http://assets.artstation.mattfiler.co.uk/VIDEOS/" . $_GET['location'] . "/" . $_GET['srt'] . ".srt");
 	$json_data = array();
 	foreach(preg_split("/((\r?\n)|(\r\n?))/", $raw_data) as $line){
 	    if (substr($line, 0, 3) == "GPS") {
