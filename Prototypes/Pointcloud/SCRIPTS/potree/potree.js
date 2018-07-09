@@ -1,3 +1,12 @@
+/*
+
+	Original potree script created by mrdoob.
+	Modified by Matt Filer for ARTSTATION.
+
+*/
+
+
+
 //MFILER-040718 START
 
 //Configure LocalForge for saving pointcloud data locally
@@ -6,57 +15,58 @@ var LOCAL_DATA_STORE = localforage.createInstance({
 });
 LOCAL_DATA_STORE.setDriver(localforage.INDEXEDDB);
 
-//Data debugging
+//Data debugging (not totally accurate now IndexedDB is used)
 var CONTENTDEBUG__ASSET_ARRAY = [];
 var CONTENTDEBUG__WASTED_ASSET_COUNT = 0;
 var CONTENTDEBUG__WASTED_MEMORY_COUNT = 0.0;
 var CONTENTDEBUG__TOTAL_ASSET_COUNT = 0;
 var CONTENTDEBUG__TOTAL_MEMORY_COUNT = 0.0;
+var CONTENTDEBUG__OUTPUT_ENABLED = false;
 function checkForWastedResources(url, xhr) {
-	/*
-	//Count up the total resources loaded (no matter if needed or not)
-	CONTENTDEBUG__TOTAL_MEMORY_COUNT += parseFloat(xhr.getResponseHeader("Content-Length"));
-	CONTENTDEBUG__TOTAL_ASSET_COUNT++;
+	if (CONTENTDEBUG__OUTPUT_ENABLED) {
+		//Count up the total resources loaded (no matter if needed or not)
+		CONTENTDEBUG__TOTAL_MEMORY_COUNT += parseFloat(xhr.getResponseHeader("Content-Length"));
+		CONTENTDEBUG__TOTAL_ASSET_COUNT++;
 
-	//Count how many times this asset has already been loaded
-	var already_loaded_counter = 0;
-	for (var i=0; i<CONTENTDEBUG__ASSET_ARRAY.length;i++) {
-		if (CONTENTDEBUG__ASSET_ARRAY[i] == url) {
-			already_loaded_counter++;
+		//Count how many times this asset has already been loaded
+		var already_loaded_counter = 0;
+		for (var i=0; i<CONTENTDEBUG__ASSET_ARRAY.length;i++) {
+			if (CONTENTDEBUG__ASSET_ARRAY[i] == url) {
+				already_loaded_counter++;
+			}
 		}
-	}
 
-	//If has been loaded already, log the filesize as waste
-	if (already_loaded_counter > 0) {
-		CONTENTDEBUG__WASTED_ASSET_COUNT++;
-		CONTENTDEBUG__WASTED_MEMORY_COUNT += parseFloat(xhr.getResponseHeader("Content-Length"));
-	}
+		//If has been loaded already, log the filesize as waste
+		if (already_loaded_counter > 0) {
+			CONTENTDEBUG__WASTED_ASSET_COUNT++;
+			CONTENTDEBUG__WASTED_MEMORY_COUNT += parseFloat(xhr.getResponseHeader("Content-Length"));
+		}
 
-	//Show waste statistics
-	var wasteMB = (CONTENTDEBUG__WASTED_MEMORY_COUNT / 1000000).toFixed(1);
-	var nonWasteMB = ((CONTENTDEBUG__TOTAL_MEMORY_COUNT - CONTENTDEBUG__WASTED_MEMORY_COUNT) / 1000000).toFixed(1);
-	var wastePercent = ((CONTENTDEBUG__WASTED_MEMORY_COUNT/CONTENTDEBUG__TOTAL_MEMORY_COUNT) * 100).toFixed(1);
-	console.log(
-		"Loaded " + CONTENTDEBUG__WASTED_ASSET_COUNT + " assets that are duplicates: " + wasteMB + "mb wasted!\n" + 
-		"Only needed to load " + (CONTENTDEBUG__TOTAL_ASSET_COUNT - CONTENTDEBUG__WASTED_ASSET_COUNT) + " assets: " + nonWasteMB + "mb!"
-	);
-	var wasteMessage = wastePercent + "% of page load is waste!";
-	if (wastePercent < 25) {
-		//Page waste is less than 25% of load
-		console.log(wasteMessage);
-	} else {
-		if (wastePercent > 50) {
-			//Page waste is more than 50% of load
-			console.error(wasteMessage);
+		//Show waste statistics
+		var wasteMB = (CONTENTDEBUG__WASTED_MEMORY_COUNT / 1000000).toFixed(1);
+		var nonWasteMB = ((CONTENTDEBUG__TOTAL_MEMORY_COUNT - CONTENTDEBUG__WASTED_MEMORY_COUNT) / 1000000).toFixed(1);
+		var wastePercent = ((CONTENTDEBUG__WASTED_MEMORY_COUNT/CONTENTDEBUG__TOTAL_MEMORY_COUNT) * 100).toFixed(1);
+		console.log(
+			"Loaded " + CONTENTDEBUG__WASTED_ASSET_COUNT + " assets that are duplicates: " + wasteMB + "mb wasted!\n" + 
+			"Only needed to load " + (CONTENTDEBUG__TOTAL_ASSET_COUNT - CONTENTDEBUG__WASTED_ASSET_COUNT) + " assets: " + nonWasteMB + "mb!"
+		);
+		var wasteMessage = wastePercent + "% of page load is waste!";
+		if (wastePercent < 25) {
+			//Page waste is less than 25% of load
+			console.log(wasteMessage);
 		} else {
-			//Page waste is more than 25% of load
-			console.warn(wasteMessage);
+			if (wastePercent > 50) {
+				//Page waste is more than 50% of load
+				console.error(wasteMessage);
+			} else {
+				//Page waste is more than 25% of load
+				console.warn(wasteMessage);
+			}
 		}
+		
+		//Log item URL to check if it occurs again
+		CONTENTDEBUG__ASSET_ARRAY.push(url);
 	}
-	
-	//Log item URL to check if it occurs again
-	CONTENTDEBUG__ASSET_ARRAY.push(url);
-	*/
 }
 //MFILER-040718 END
 
@@ -2270,6 +2280,7 @@ function checkForWastedResources(url, xhr) {
 			}
 
 			if (selectedPointcloud) {
+				//console.log("HIT"); //MFILER-090718: raycast debugging, to be removed.
 				return {
 					location: closestIntersection,
 					distance: closestDistance,
@@ -2277,6 +2288,7 @@ function checkForWastedResources(url, xhr) {
 					point: closestPoint
 				};
 			} else {
+				//console.log("NO HIT"); //MFILER-090718: raycast debugging, to be removed.
 				return null;
 			}
 		}
@@ -3959,7 +3971,7 @@ function checkForWastedResources(url, xhr) {
 			this.pcoGeometry = pcoGeometry;
 			this.geometry = null;
 			this.boundingBox = boundingBox;
-			this.boundingSphere = boundingBox.getBoundingSphere(new THREE.Sphere());
+			this.boundingSphere = boundingBox.getBoundingSphere(new THREE.Sphere()); 
 			this.children = {};
 			this.numPoints = 0;
 			this.level = null;
@@ -7003,9 +7015,22 @@ void main() {
 				// let sphere = node.getBoundingSphere().clone().applyMatrix4(node.sceneNode.matrixWorld);
 				let sphere = node.getBoundingSphere().clone().applyMatrix4(this.matrixWorld);
 
+				//MFILER-090718 START: Increasing chance of ray intersecting on mobile!
+				var device = new MobileDetect(window.navigator.userAgent);
+				if (device.mobile() != null) {
+					sphere.radius *= 10; 
+				}
+				//MFILER-090718 END
+
 				if (_ray.intersectsSphere(sphere)) {
 					nodesOnRay.push(node);
 				}
+
+				//MFILER-090718 START: Tidy up mobile optimisations
+				if (device.mobile() != null) {
+					sphere.radius /= 10; 
+				}
+				//MFILER-090718 END
 			}
 
 			return nodesOnRay;
@@ -14974,10 +14999,16 @@ void main() {
 			this.worldViewCameraConfig = true; //MFILER-040718
 			this.isTransitioning = false; //MFILER-050718
 			this.focusPoint = null; //MFILER-060718
+			this.currentDevice = new MobileDetect(window.navigator.userAgent); // MFILER-090718
 
 			this.tweens = [];
 
 			let drag = (e) => {
+				//MFILER-090718 START: Disable panning on mobile for now, this needs to be sorted (TODO)
+				if (this.currentDevice.mobile() != null) {
+					return;
+				}
+				//MFILER-090718 END
 				if (!this.isTransitioning) { //MFILER-050718
 					if (e.drag.object !== null) {
 						return;
@@ -15046,6 +15077,12 @@ void main() {
 			let previousTouch = null;
 			let touchStart = e => {
 				previousTouch = e;
+
+				//MFILER-090718 START: "Tap to location", conflicts with panning currently
+				if (!this.worldViewCameraConfig && !this.isTransitioning) {
+					this.zoomToLocation({x: previousTouch.touches[0].screenX, y: previousTouch.touches[0].screenY}, false, 1500); 
+				}
+				//MFILER-090718 END
 			};
 
 			let touchEnd = e => {
@@ -15054,42 +15091,46 @@ void main() {
 
 			let touchMove = e => {
 				if (e.touches.length === 2 && previousTouch.touches.length === 2){
-					let prev = previousTouch;
-					let curr = e;
+					if (this.scrollZoomEnabled && !this.isTransitioning) { //MFILER-090718
+						let prev = previousTouch;
+						let curr = e;
 
-					let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
-					let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
-					let prevDist = Math.sqrt(prevDX * prevDX + prevDY * prevDY);
+						let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
+						let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
+						let prevDist = Math.sqrt(prevDX * prevDX + prevDY * prevDY);
 
-					let currDX = curr.touches[0].pageX - curr.touches[1].pageX;
-					let currDY = curr.touches[0].pageY - curr.touches[1].pageY;
-					let currDist = Math.sqrt(currDX * currDX + currDY * currDY);
+						let currDX = curr.touches[0].pageX - curr.touches[1].pageX;
+						let currDY = curr.touches[0].pageY - curr.touches[1].pageY;
+						let currDist = Math.sqrt(currDX * currDX + currDY * currDY);
 
-					let delta = currDist / prevDist;
-					let resolvedRadius = this.scene.view.radius + this.radiusDelta;
-					let newRadius = resolvedRadius / delta;
-					this.radiusDelta = newRadius - resolvedRadius;
+						let delta = currDist / prevDist;
+						let resolvedRadius = this.scene.view.radius + this.radiusDelta;
+						let newRadius = resolvedRadius / delta;
+						this.radiusDelta = newRadius - resolvedRadius;
 
-					this.stopTweens();
+						this.stopTweens();
+					}
 				}else if(e.touches.length === 3 && previousTouch.touches.length === 3){
-					let prev = previousTouch;
-					let curr = e;
+					if (!this.isTransitioning) { //MFILER-090718
+						let prev = previousTouch;
+						let curr = e;
 
-					let prevMeanX = (prev.touches[0].pageX + prev.touches[1].pageX + prev.touches[2].pageX) / 3;
-					let prevMeanY = (prev.touches[0].pageY + prev.touches[1].pageY + prev.touches[2].pageY) / 3;
+						let prevMeanX = (prev.touches[0].pageX + prev.touches[1].pageX + prev.touches[2].pageX) / 3;
+						let prevMeanY = (prev.touches[0].pageY + prev.touches[1].pageY + prev.touches[2].pageY) / 3;
 
-					let currMeanX = (curr.touches[0].pageX + curr.touches[1].pageX + curr.touches[2].pageX) / 3;
-					let currMeanY = (curr.touches[0].pageY + curr.touches[1].pageY + curr.touches[2].pageY) / 3;
+						let currMeanX = (curr.touches[0].pageX + curr.touches[1].pageX + curr.touches[2].pageX) / 3;
+						let currMeanY = (curr.touches[0].pageY + curr.touches[1].pageY + curr.touches[2].pageY) / 3;
 
-					let delta = {
-						x: (currMeanX - prevMeanX) / this.renderer.domElement.clientWidth,
-						y: (currMeanY - prevMeanY) / this.renderer.domElement.clientHeight
-					};
+						let delta = {
+							x: (currMeanX - prevMeanX) / this.renderer.domElement.clientWidth,
+							y: (currMeanY - prevMeanY) / this.renderer.domElement.clientHeight
+						};
 
-					this.panDelta.x += delta.x;
-					this.panDelta.y += delta.y;
+						this.panDelta.x += delta.x;
+						this.panDelta.y += delta.y;
 
-					this.stopTweens();
+						this.stopTweens();
+					}
 				}
 
 				previousTouch = e;
@@ -15144,7 +15185,7 @@ void main() {
 				return;
 			}
 			if (mouseSubstitute != null) {
-				I = mouseSubstitute;
+				I = mouseSubstitute; //MFILER-060718
 			}
 			this.didClickEnvironment = true; //MFILER-290618
 			this.clickedEnvironmentUUID = I.pointcloud.uuid; //MFILER-020718
@@ -17155,7 +17196,7 @@ void main() {
 		}
 
 		initTHREE () {
-			this.renderer = new THREE.WebGLRenderer({alpha: true, premultipliedAlpha: false, antialias: true});
+			this.renderer = new THREE.WebGLRenderer({alpha: true, premultipliedAlpha: false, antialias: true}); //MFILER-060718: Enable anti-aliasing.
 			this.renderer.setClearColor(0x000000, 0);
 			this.renderer.setSize(10, 10);
 			this.renderer.autoClear = true;

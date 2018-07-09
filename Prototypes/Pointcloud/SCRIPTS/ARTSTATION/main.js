@@ -1,3 +1,5 @@
-/*
-        ARTSTATION script is currently embedded in-page.
-*/
+$(document).ready(function() {
+	/*
+		ARTSTATION code will go here.
+	*/
+});

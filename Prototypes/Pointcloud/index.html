@@ -35,16 +35,21 @@
 		.cesium-widget-credits {
 			display: none;
 		}
-		.DollyButton {
+		.ARTSTATION_ControlBtn {
 			position:absolute;
 			bottom:0;
-			left:0;
 			z-index:900;
 			border-radius: 0 !important;
 			outline: none !important;
 		}
+		.ARTSTATION_DollyBtn {
+			left: 0;
+		}
 		.DollyZoomOut {
 			margin-left: 42px;
+		}
+		.ARTSTATION_HomeBtn {
+			right: 0;
 		}
 		.modal-backdrop {
 			z-index: 950;
@@ -81,32 +86,36 @@
 	<script src="SCRIPTS/stats/stats.js"></script>
 	<!--<script src="SCRIPTS/ARTSTATION/main.js"></script>-->
 
-	<button class="DollyButton DollyZoomIn btn" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();">
+	<!-- ARTSTATION Camera Dolly Buttons -->
+	<button class="ARTSTATION_ControlBtn ARTSTATION_DollyBtn DollyZoomIn btn" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-plus"></i>
 	</button>
-	<button class="DollyButton DollyZoomOut btn" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();">
+	<button class="ARTSTATION_ControlBtn ARTSTATION_DollyBtn DollyZoomOut btn" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomOut();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-minus"></i>
 	</button>
 
+	<!-- ARTSTATION Home Button -->
+	<button class="ARTSTATION_ControlBtn ARTSTATION_HomeBtn btn" onclick="ReturnToWorldView();">
+		<i class="fas fa-home"></i>
+	</button>
+
+	<!-- ARTSTATION Controls Popup -->
 	<div class="modal fade" id="ARTSTATION_ControlPanel">
 		<div class="modal-dialog modal-dialog-centered">
 			<div class="modal-content">
-				<!-- Modal Header -->
 				<div class="modal-header">
 					<h4 class="modal-title">ARTSTATION Controls</h4>
 					<button type="button" class="close" data-dismiss="modal">&times;</button>
 				</div>
-				<!-- Modal body -->
 				<div class="modal-body">
-					<ul>
+					<ul class="ARTSTATION_DeviceControls">
 						<li>Click on an environment to enter it.</li>
 						<li>Double click within an environment to move.</li>
 						<li>Use left mouse down to rotate camera.</li>
 						<li>Zoom in/out with the buttons in the bottom left.</li>
-						<li>Press enter to leave an environment.</li>
+						<li>Exit an environment with the button in the bottom right.</li>
 					</ul>
 				</div>
-				<!-- Modal footer -->
 				<div class="modal-footer">
 					<button type="button" class="btn btn-success" data-dismiss="modal">OK</button>
 				</div>
@@ -114,6 +123,7 @@
 		</div>
 	</div>
 
+	<!-- ARTSTATION Render Area -->
 	<div class="potree_container">
 		<div id="potree_render_area">
 			<div id="cesiumContainer"></div>			
@@ -170,7 +180,18 @@
 		//viewer.useHQ = OPTIMISATION_UseHQ;
 		viewer.useHQ = false; //"ART STYLE" is squares, so HQ must be disabled.
 		viewer.setMinNodeSize(OPTIMISATION_MinNodeSize);
-		//console.log("Optimisation result:\nPOINT BUDGET - " + OPTIMISATION_PointBudget + "\nMIN NODE SIZE - " + OPTIMISATION_MinNodeSize + "\nSHOULD USE HQ - " + OPTIMISATION_UseHQ)
+		console.log("Optimisation result:\nPOINT BUDGET - " + OPTIMISATION_PointBudget + "\nMIN NODE SIZE - " + OPTIMISATION_MinNodeSize + "\nSHOULD USE HQ - " + OPTIMISATION_UseHQ);
+
+		//UPDATE CONTROL LIST
+		if (device.mobile() != null) {
+			//Mobile
+			$(".ARTSTATION_DeviceControls").html("<li>Touch on an environment to enter it.</li><li>Touch within an environment to move.</li><li>Touch and drag to rotate camera.</li><li>Zoom in/out with the buttons in the bottom left.</li><li>Exit an environment with the button in the bottom right.</li>");
+		}
+		else
+		{
+			//Desktop
+			$(".ARTSTATION_DeviceControls").html("<li>Click on an environment to enter it.</li><li>Double click within an environment to move.</li><li>Use left mouse down to rotate camera.</li><li>Zoom in/out with the buttons in the bottom left.</li><li>Exit an environment with the button in the bottom right.</li>");
+		}
 
 		//DEFINE CESIUM VIEWER
 		window.cesiumViewer = new Cesium.Viewer('cesiumContainer', {
@@ -578,28 +599,25 @@
 			}
 		}
 
-		//MOVE BACK TO "WORLD VIEW" ON PRESS OF KEY (ENTER)
-		$(document).keypress(function(e) {
+		//MOVE BACK TO "WORLD VIEW"
+		function ReturnToWorldView() {
 			if (STATE == IN_ENVIRONMENT) {
-			    var keycode = (event.keyCode ? event.keyCode : event.which);
-			    if(keycode == '13'){
-		            setState(IN_WORLDVIEW);
+	            setState(IN_WORLDVIEW);
 
-					viewer.fitToScreen(1, 600);
+				viewer.fitToScreen(1, 600);
 
-					DOLLY_COUNTER = [0,0];
+				DOLLY_COUNTER = [0,0];
 
-					var controls = viewer.getControls(viewer.scene.view.navigationMode);
-					controls.worldViewCameraConfig = true;
+				var controls = viewer.getControls(viewer.scene.view.navigationMode);
+				controls.worldViewCameraConfig = true;
 
-					for (var i = 0; i < VIDEO.length; i++) {
-						stopVideo(i);
-					}
+				for (var i = 0; i < VIDEO.length; i++) {
+					stopVideo(i);
+				}
 
-					$(".annotation").fadeIn(600);
-			    }
+				$(".annotation").fadeIn(600);
 			}
-		});
+		}
 
 		//CHANGE STATE
 		function setState(newState) {
