@@ -15151,7 +15151,7 @@ void main() {
 
 		stop(){
 			this.yawDelta = 0;
-			//this.pitchDelta = 0; - MFILER-040718
+			this.pitchDelta = 0;
 			this.radiusDelta = 0;
 			this.panDelta.set(0, 0);
 		}
@@ -15162,6 +15162,7 @@ void main() {
 				if (!this.worldViewCameraConfig) {
 					let resolvedRadius = this.scene.view.radius + this.radiusDelta;
 					this.radiusDelta += -dollyAmount * resolvedRadius * 0.1;
+					this.pitchDelta += -dollyAmount * 0.03; //MFILER-110718: Add pitch effect to dolly zoom.
 					this.stopTweens();
 				}
 			}
@@ -15266,14 +15267,14 @@ void main() {
 					let progression = Math.min(1, this.fadeFactor * delta);
 
 					let yaw = view.yaw;
-					//let pitch = view.pitch; - MFILER-040718
+					let pitch = view.pitch;
 					let pivot = view.getPivot();
 
 					yaw -= progression * this.yawDelta;
-					//pitch -= progression * this.pitchDelta; - MFILER-040718
+					pitch -= progression * this.pitchDelta;
 
 					view.yaw = yaw;
-					//view.pitch = pitch; - MFILER-040718
+					view.pitch = pitch;
 
 					let V = this.scene.view.direction.multiplyScalar(-view.radius);
 					let position = new THREE.Vector3().addVectors(pivot, V);
@@ -15314,7 +15315,7 @@ void main() {
 					let attenuation = Math.max(0, 1 - this.fadeFactor * delta);
 
 					this.yawDelta *= attenuation;
-					//this.pitchDelta *= attenuation; - MFILER-040718
+					this.pitchDelta *= attenuation; 
 					this.panDelta.multiplyScalar(attenuation);
 					// this.radiusDelta *= attenuation;
 					this.radiusDelta -= progression * this.radiusDelta;

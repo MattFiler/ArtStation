@@ -1,3 +1,4 @@
+<!doctype html>
 <html>
 <head>
 	<meta charset="utf-8">
@@ -30,26 +31,41 @@
 			position: absolute;
 			width: 100%; 
 			height: 100%; 
-			background-color:green;
+			background-color:black;
 		}
 		.cesium-widget-credits {
 			display: none;
 		}
 		.ARTSTATION_ControlBtn {
 			position:absolute;
-			bottom:0;
+			bottom:-1px;
 			z-index:900;
 			border-radius: 0 !important;
 			outline: none !important;
+			border: 1px solid black;
+			cursor: pointer;
+			font-size: 30px;
+			background: #e2e2e2;
+			transition: background 1s;
+			text-align:center;
+			height: 112px;
+			width: 112px;
+			display: none;
 		}
-		.ARTSTATION_DollyBtn {
-			left: 0;
+		.ARTSTATION_ControlBtn:hover {
+			background: #eaeaea;
 		}
-		.DollyZoomOut {
-			margin-left: 42px;
+		.ARTSTATION_ControlBtn:active {
+			background: #fff;
 		}
-		.ARTSTATION_HomeBtn {
-			right: 0;
+		.ARTSTATION_LeftBtn {
+			left: -1px;
+		}
+		.DollyZoomOut, .ARTSTATION_PauseBtn {
+			margin-left: 111px;
+		}
+		.ARTSTATION_RightBtn {
+			right: -1px;
 		}
 		.modal-backdrop {
 			z-index: 950;
@@ -59,6 +75,32 @@
 		}
 		.annotation-label {
 			text-transform: capitalize;
+		}
+		.annotation {
+			margin-top: -20px;
+    		margin-left: 13px;
+		}
+		.ARTSTATION_UserFeedback {
+			position: absolute;
+			left:0;
+			right: 0;
+			text-align: center;
+			font-size: 35px;
+			color: white;
+			text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;  
+			z-index: 999;
+			display: none;
+			text-transform: uppercase;
+		}
+		@media (min-width: 769px) {
+			.ARTSTATION_UserFeedback {
+				bottom: 10px;
+			}
+		}
+		@media (max-width: 768px) {
+			.ARTSTATION_UserFeedback {
+				top: 10px;
+			}
 		}
 	</style>
 </head>
@@ -72,7 +114,7 @@
 	<script src="SCRIPTS/jquery-ui/jquery-ui.min.js"></script>
 	<script src="SCRIPTS/three.js/build/three.js"></script>
 	<script src="SCRIPTS/other/BinaryHeap.js"></script>
-	<script src="SCRIPTS/tween/tween.min.js"></script>
+	<script src="SCRIPTS/tween/Tween.js"></script>
 	<script src="SCRIPTS/d3/d3.js"></script>
 	<script src="SCRIPTS/proj4/proj4.js"></script>
 	<script src="SCRIPTS/openlayers3/ol.js"></script>
@@ -87,17 +129,33 @@
 	<!--<script src="SCRIPTS/ARTSTATION/main.js"></script>-->
 
 	<!-- ARTSTATION Camera Dolly Buttons -->
-	<button class="ARTSTATION_ControlBtn ARTSTATION_DollyBtn DollyZoomIn btn" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
+	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-plus"></i>
 	</button>
-	<button class="ARTSTATION_ControlBtn ARTSTATION_DollyBtn DollyZoomOut btn" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomOut();" ontouchend="StopDollyZoom();">
+	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomOut OnlyInEnvironment" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomOut();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-minus"></i>
 	</button>
 
 	<!-- ARTSTATION Home Button -->
-	<button class="ARTSTATION_ControlBtn ARTSTATION_HomeBtn btn" onclick="ReturnToWorldView();">
+	<button class="ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_HomeBtn OnlyInEnvironment" onclick="ReturnToWorldView();">
 		<i class="fas fa-home"></i>
 	</button>
+
+	<!-- ARTSTATION Video Controls -->
+	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PlayBtn OnlyInVideo" onclick="playCurrentVideo();">
+		<i class="fas fa-play"></i>
+	</button>
+	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PauseBtn OnlyInVideo" onclick="pauseCurrentVideo();">
+		<i class="fas fa-pause"></i>
+	</button>
+
+	<!-- ARTSTATION Exit Video -->
+	<button class="ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_ExitBtn OnlyInVideo" onclick="exitCurrentVideo();">
+		<i class="fas fa-times"></i>
+	</button>
+
+	<!-- ARTSTATION User Feedback -->
+	<span class="ARTSTATION_UserFeedback"></span>
 
 	<!-- ARTSTATION Controls Popup -->
 	<div class="modal fade" id="ARTSTATION_ControlPanel">
@@ -142,13 +200,23 @@
 		var LOADING_PROGRESS = 0;
 		var CAMERA_UNLOCK_DATA = {yaw: 0, _pitch: 0, maxPitch: 0, minPitch: 0, radius: 0, pitch: 0, focusPoint: (0,0,0)};
 
-		//DEFINE STATES
+		//DEFINE WORLD STATES
 		var IN_WORLDVIEW = 0;
 		var IN_ENVIRONMENT = 1;
 		var IS_TRANSITIONING_TO_ENVIRONMENT = 2;
 		var IS_TRACKING_VIDEO = 3;
 		var IS_TRANSITIONING_TO_VIDEO = 4;
-		var STATE = IN_WORLDVIEW;
+		var IS_TRANSITIONING_TO_WORLDVIEW = 5;
+		var WORLD_STATE = null;
+
+		//DEFINE FOCUSSED VIDEO STATES
+		var REQUESTED_PAUSE = 0;
+		var HAS_PAUSED = 1;
+		var REQUESTED_PLAY = 2;
+		var IS_PLAYING = 3;
+		var REQUESTED_STOP = 4;
+		var HAS_STOPPED = 5;
+		var FOCUSSED_VIDEO_STATE = null;
 
 		//DEFINE POTREE VIEWER
 		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
@@ -190,7 +258,7 @@
 		else
 		{
 			//Desktop
-			$(".ARTSTATION_DeviceControls").html("<li>Click on an environment to enter it.</li><li>Double click within an environment to move.</li><li>Use left mouse down to rotate camera.</li><li>Zoom in/out with the buttons in the bottom left.</li><li>Exit an environment with the button in the bottom right.</li>");
+			$(".ARTSTATION_DeviceControls").html("<li><b>Environments</b></li><ul><li>Click to enter from world view.</li><li>Double click to move focus.</li><li>Use left mouse down to rotate camera.</li><li>Zoom in/out with the buttons in the bottom left.</li><li>Exit with the button in the bottom right.</li></ul><li><b>Videos</b></li><ul><li>Click a video marker to play.</li><li>Play/pause with the buttons in the bottom left.</li><li>Exit with the button in the bottom right.</li></ul>");
 		}
 
 		//DEFINE CESIUM VIEWER
@@ -228,10 +296,13 @@
 			}
 		});
 
+		//SET INITIAL STATE
+		setState(IN_WORLDVIEW, false);
+
 		//SHOW DEBUG STATS
 		var stats = new Stats();
 		stats.showPanel(0);
-		document.body.appendChild( stats.dom );
+		document.body.appendChild(stats.dom);
 
 		/*
 		viewer.loadGUI(() => {
@@ -246,7 +317,7 @@
 		//LOAD FIELD
 		loadLocation(
 			"field", 
-			45, 
+			50, 
 			function(location) { 
 				createVideo(location, "edited"); 
 			}
@@ -255,7 +326,7 @@
 		//LOAD ST THOMAS HEAD
 		loadLocation(
 			"st_thomas_head", 
-			42, 
+			45, 
 			function(location) { 
 				createVideo(location, "DJI_0023"); 
 			}
@@ -268,7 +339,7 @@
 		function loop(timestamp){
 			requestAnimationFrame(loop);
 			stats.begin();
-			if (STATE == IN_WORLDVIEW || STATE == IS_TRANSITIONING_TO_ENVIRONMENT) {
+			if (WORLD_STATE == IN_WORLDVIEW || WORLD_STATE == IS_TRANSITIONING_TO_ENVIRONMENT) {
 				$(".annotation").show();
 			}
 			else
@@ -276,7 +347,6 @@
 				$(".annotation").hide();
 			}
 			viewer.update(viewer.clock.getDelta(), timestamp);
-			viewer.render();
 			if(window.toMap !== undefined){
 				{
 					let camera = viewer.scene.getActiveCamera();
@@ -325,6 +395,7 @@
 				}
 			}
 			cesiumViewer.render();
+			viewer.render();
 			stats.end();
 		}
 		requestAnimationFrame(loop);
@@ -380,7 +451,7 @@
 		}
 
 		//CREATE A VIDEO IN WORLD
-		function createVideo(locationIndex, videoName) {
+		function createVideo(locationIndex, videoName, videoThumbnail="replace_me.png") {
 		    //CREATE VIDEO ELEMENT
 		    var video_element = document.createElement("video");
 		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
@@ -399,7 +470,7 @@
 		    video_texture.minFilter = THREE.LinearFilter;
 		    video_texture.magFilter = THREE.LinearFilter;
 		    video_texture.format = THREE.RGBFormat;
-		    var video_material = new THREE.MeshLambertMaterial( { color: 0xffffff, map: video_texture } );
+		    var video_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: video_texture, transparent: true, opacity: 0});
 		    var video_plane_mesh = new THREE.Mesh(video_plane, video_material);
 		    video_plane_mesh.material.side = THREE.DoubleSide;
 		    video_plane_mesh.name = "ARTSTATION_VideoPlane";
@@ -410,6 +481,15 @@
 		    video_plane_mesh.rotation.z = Math.PI / 2;
 		    video_plane_mesh.visible = false;
 		    viewer.scene.scene.add(video_plane_mesh);
+
+		    //CREATE MARKER MESH
+		    var marker_geometry = new THREE.BoxGeometry(10, 10, 10);
+		    var marker_texture = new THREE.TextureLoader().load("http://assets.artstation.mattfiler.co.uk/IMAGES/" + videoThumbnail);
+		    marker_texture.crossOrigin = 'anonymous';
+			var marker_material = new THREE.MeshBasicMaterial({color: 0xffffff, map: marker_texture, transparent: true, opacity: 0});
+			var marker = new THREE.Mesh(marker_geometry, marker_material);
+			marker.name = "ARTSTATION_VideoMarker";
+		    viewer.scene.scene.add(marker);
 
 		    //GET VIDEO POSITION DATA
 		    var video_position_data = [];
@@ -428,19 +508,20 @@
 		        LocationDataIndex: locationIndex, 
 		        UUID: video_plane_mesh.uuid,
 		        PositionArray: video_position_data,
-		        LockCamera: false
+		        LockCamera: false,
+		        MarkerUUID: marker.uuid
 		    };
-		    var video_data_length = VIDEO.push(video_data);
+		    var video_id = VIDEO.push(video_data);
+		    video_id -= 1;
 
 		    //MOVE VIDEO FROM GPS
-		    moveVideoFromGPS(video_data_length - 1);
+		    moveVideoFromGPS(video_id);
 		}
 
 		//MOVE VIDEO ON TIME UPDATE FROM GPS DATA
 		function moveVideoFromGPS(video_index) {
 		    var major_time_milestone = 0;
 		    var previous_acted_milestone = -1;
-		    var first_run = true;
 		    var camera_is_locked = false;
 			var controls = viewer.getControls(viewer.scene.view.navigationMode);
 		    $("#"+VIDEO[video_index].ElementID).on("timeupdate", function(event){
@@ -448,7 +529,7 @@
 		        if (major_time_milestone != previous_acted_milestone) {
 		            previous_acted_milestone = major_time_milestone;
 		            try {
-		                viewer.scene.scene.traverse((node) => {       
+		                viewer.scene.scene.traverse((node) => {      
 		                    if (node.uuid == VIDEO[video_index].UUID) {
 		                        var new_position = new THREE.Vector3(
 		                            VIDEO[video_index].PositionArray[major_time_milestone+1][0], 
@@ -457,64 +538,76 @@
 		                        var coords = ConvertToUTM(new_position.x, new_position.y);
 		                        var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset);
 
-		                    	if (first_run) {
-		                    		node.position.x = VIDEO_NEW_POSITION.x;
-		                    		node.position.y = VIDEO_NEW_POSITION.y;
-		                    		node.position.z = VIDEO_NEW_POSITION.z;
-		                    		first_run = false;
-		                    	} else {
-		                        	new TWEEN.Tween(node.position).to(VIDEO_NEW_POSITION, 1000).start();
-		                    	}
+		                    	var VIDEO_TWEEN = new TWEEN.Tween(node.position).to(VIDEO_NEW_POSITION, 1000);
+		                    	VIDEO_TWEEN.onStart(() => {
+									//LOCK CAMERA TO VIDEO WHEN REQUESTED
+			                    	if (VIDEO[video_index].LockCamera) {
+										$(".annotation").hide();
+			                    		controls.isTransitioning = true;
+			                    		camera_is_locked = true;
+			                    		setState(IS_TRACKING_VIDEO);
 
-		                    	//LOCK CAMERA TO VIDEO WHEN REQUESTED
-		                    	if (VIDEO[video_index].LockCamera) {
-									$(".annotation").hide();
-		                    		controls.isTransitioning = true;
-		                    		camera_is_locked = true;
-		                    		setState(IS_TRACKING_VIDEO);
-
-		                        	var CAMERA_NEW_POSITION = new THREE.Vector3(VIDEO_NEW_POSITION.x - 20, VIDEO_NEW_POSITION.y, VIDEO_NEW_POSITION.z);
-		                        	
-		                        	var CAMERA_TWEEN = new TWEEN.Tween(viewer.scene.view.position).to(CAMERA_NEW_POSITION, 1000);
-									CAMERA_TWEEN.onUpdate(() => {
-										viewer.scene.view.lookAt(node.position);
-									});
-									CAMERA_TWEEN.onComplete(() => {
-										if (!VIDEO[video_index].LockCamera && camera_is_locked) {
-											viewer.scene.view.yaw = CAMERA_UNLOCK_DATA.yaw;
-											viewer.scene.view._pitch = CAMERA_UNLOCK_DATA._pitch;
-											viewer.scene.view.maxPitch = CAMERA_UNLOCK_DATA.maxPitch;
-											viewer.scene.view.minPitch = CAMERA_UNLOCK_DATA.minPitch;
-											viewer.scene.view.pitch = CAMERA_UNLOCK_DATA.pitch;
-											viewer.scene.view.radius = CAMERA_UNLOCK_DATA.radius;
-
-											var current_pointcloud = null;
-											for (var i=0; i<viewer.scene.pointclouds.length;i++) {
-												if (viewer.scene.pointclouds[i].uuid == controls.clickedEnvironmentUUID) {
-													current_pointcloud = viewer.scene.pointclouds[i];
-												}
-											}
-
-											controls.zoomToLocation({x:0,y:0}, false, 1000, true, function() {}, {
-												distance: 100, 
-												location: CAMERA_UNLOCK_DATA.focusPoint, 
-												point: {position: CAMERA_UNLOCK_DATA.focusPoint}, 
-												pointcloud: current_pointcloud
-											});
-
-											//pauseVideo(video_index);
-											setState(IN_ENVIRONMENT);
-											controls.isTransitioning = false;
-											camera_is_locked = false;
-										}
-										else
-										{
-		                    				setState(IS_TRACKING_VIDEO);
+			                        	var CAMERA_NEW_POSITION = new THREE.Vector3(VIDEO_NEW_POSITION.x - 20, VIDEO_NEW_POSITION.y, VIDEO_NEW_POSITION.z);
+			                        	
+			                        	var CAMERA_TWEEN = new TWEEN.Tween(viewer.scene.view.position).to(CAMERA_NEW_POSITION, 1000);
+										CAMERA_TWEEN.onUpdate(() => {
 											viewer.scene.view.lookAt(node.position);
-										}
-									});
-									CAMERA_TWEEN.start();
-		                    	}
+											if (FOCUSSED_VIDEO_STATE == REQUESTED_PAUSE) {
+												VIDEO_TWEEN.pause();
+												CAMERA_TWEEN.pause();
+												FOCUSSED_VIDEO_STATE = HAS_PAUSED;
+											}
+											if (FOCUSSED_VIDEO_STATE == REQUESTED_PLAY) {
+												VIDEO_TWEEN.play();
+												CAMERA_TWEEN.play();
+												FOCUSSED_VIDEO_STATE = IS_PLAYING;
+											}
+											if (FOCUSSED_VIDEO_STATE == REQUESTED_STOP) {
+												/*
+												VIDEO_TWEEN.stop();
+												CAMERA_TWEEN.stop();
+												*/
+												FOCUSSED_VIDEO_STATE = HAS_STOPPED;
+											}
+										});
+										CAMERA_TWEEN.onComplete(() => {
+											if (!VIDEO[video_index].LockCamera && camera_is_locked) {
+												viewer.scene.view.yaw = CAMERA_UNLOCK_DATA.yaw;
+												viewer.scene.view._pitch = CAMERA_UNLOCK_DATA._pitch;
+												viewer.scene.view.maxPitch = CAMERA_UNLOCK_DATA.maxPitch;
+												viewer.scene.view.minPitch = CAMERA_UNLOCK_DATA.minPitch;
+												viewer.scene.view.pitch = CAMERA_UNLOCK_DATA.pitch;
+												viewer.scene.view.radius = CAMERA_UNLOCK_DATA.radius;
+
+												var current_pointcloud = null;
+												for (var i=0; i<viewer.scene.pointclouds.length;i++) {
+													if (viewer.scene.pointclouds[i].uuid == controls.clickedEnvironmentUUID) {
+														current_pointcloud = viewer.scene.pointclouds[i];
+													}
+												}
+
+												controls.zoomToLocation({x:0,y:0}, false, 1000, true, function() {}, {
+													distance: 100, 
+													location: CAMERA_UNLOCK_DATA.focusPoint, 
+													point: {position: CAMERA_UNLOCK_DATA.focusPoint}, 
+													pointcloud: current_pointcloud
+												});
+
+												stopVideo(video_index);
+												setState(IN_ENVIRONMENT);
+												controls.isTransitioning = false;
+												camera_is_locked = false;
+											}
+											else
+											{
+			                    				setState(IS_TRACKING_VIDEO);
+												viewer.scene.view.lookAt(node.position);
+											}
+										});
+										CAMERA_TWEEN.start();
+			                    	}
+								});
+		                    	VIDEO_TWEEN.start();
 		                    }
 		                });
 		            } catch { }
@@ -532,7 +625,7 @@
 		var mouse = new THREE.Vector2();
 		var controls = viewer.getControls(viewer.scene.view.navigationMode);
 		function handleClickInput(position) {
-			if (STATE == IN_WORLDVIEW) {
+			if (WORLD_STATE == IN_WORLDVIEW) {
 				//MOVE TO LOCATION DEPENDING ON INPUT LOCATION
 		        mouse.x = position[0];
 		        mouse.y = position[1];
@@ -541,11 +634,21 @@
 			        	controls.worldViewCameraConfig = false;
 
 						setState(IN_ENVIRONMENT);
+						userFeedbackPopup("Entering environment");
 
 						for (var i = 0; i < VIDEO.length; i++) {
 							if (LOCATION[VIDEO[i].LocationDataIndex].UUID == controls.clickedEnvironmentUUID) {
-								playVideo(i);
-								//pauseVideo(i);
+								try { viewer.scene.scene.traverse((node) => {
+									if (node.uuid == VIDEO[i].MarkerUUID) {
+										var marker_coords = ConvertToUTM(VIDEO[i].PositionArray[0][0], VIDEO[i].PositionArray[0][1]);
+				                        var marker_position = new THREE.Vector3(marker_coords[0], marker_coords[1], parseFloat(VIDEO[i].PositionArray[0][3]) + 25 + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset);
+				                        node.position.x = marker_position.x;
+				                        node.position.y = marker_position.y;
+				                        node.position.z = marker_position.z;
+    									node.visible = true;
+		            					new TWEEN.Tween(node.material).to({opacity: 1}, 500).start();
+				                    }
+		                   		}); } catch { }
 							}
 						}
 					}
@@ -555,7 +658,7 @@
 					$(".annotation").fadeOut(600);
 				}
 			}
-			if (STATE == IN_ENVIRONMENT || STATE == IS_TRACKING_VIDEO) {
+			if (WORLD_STATE == IN_ENVIRONMENT || WORLD_STATE == IS_TRACKING_VIDEO) {
 				//MOVE TO VIDEO DEPENDING ON INPUT LOCATION
 				mouse.x = ( position[0] / window.innerWidth ) * 2 - 1;
 				mouse.y = - ( position[1] / window.innerHeight ) * 2 + 1;
@@ -565,7 +668,8 @@
 
 				var video_planes = [];
 				for (var i=0; i<viewer.scene.scene.children.length; i++) {
-					if (viewer.scene.scene.children[i].name == "ARTSTATION_VideoPlane") {
+					if (viewer.scene.scene.children[i].name == "ARTSTATION_VideoMarker" ||
+						viewer.scene.scene.children[i].name == "ARTSTATION_VideoPlane") {
 						video_planes.push(viewer.scene.scene.children[i]);
 					}
 				}
@@ -573,7 +677,7 @@
 				var intersects = raycaster.intersectObjects(video_planes);
 				for (var i=0; i<intersects.length; i++) {
 					for (var x=0; x<VIDEO.length;x++) {
-						if (VIDEO[x].UUID == intersects[i].object.uuid) {
+						if (VIDEO[x].MarkerUUID == intersects[i].object.uuid) {
 							if (VIDEO[x].LockCamera == false) {
 								setState(IS_TRANSITIONING_TO_VIDEO);
 								controls.isTransitioning = true;
@@ -585,13 +689,8 @@
 								CAMERA_UNLOCK_DATA.pitch = viewer.scene.view.pitch;
 								CAMERA_UNLOCK_DATA.focusPoint = controls.focusPoint;
 								VIDEO[x].LockCamera = true;
-								//playVideo(x);
-							}
-							else
-							{
-								setState(IS_TRANSITIONING_TO_VIDEO);
-								controls.isTransitioning = true;
-								VIDEO[x].LockCamera = false;
+								playVideo(x);
+								userFeedbackPopup("Starting video");
 							}
 						}	
 					}
@@ -600,35 +699,111 @@
 		}
 
 		//MOVE BACK TO "WORLD VIEW"
+		var controls = viewer.getControls(viewer.scene.view.navigationMode);
 		function ReturnToWorldView() {
-			if (STATE == IN_ENVIRONMENT) {
-	            setState(IN_WORLDVIEW);
+			if (WORLD_STATE == IN_ENVIRONMENT) {
+	            setState(IS_TRANSITIONING_TO_WORLDVIEW);
+				viewer.scene.view.pitch = -0.7853981633974672;
 
 				viewer.fitToScreen(1, 600);
 
 				DOLLY_COUNTER = [0,0];
 
-				var controls = viewer.getControls(viewer.scene.view.navigationMode);
-				controls.worldViewCameraConfig = true;
+				userFeedbackPopup("Exiting environment");
 
 				for (var i = 0; i < VIDEO.length; i++) {
-					stopVideo(i);
+					try { viewer.scene.scene.traverse((node) => { 
+						if (node.uuid == VIDEO[i].MarkerUUID) {
+		            		new TWEEN.Tween(node.material).to({opacity: 0}, 500).onComplete(function(){node.visible = false;}).start();
+						}
+		            }); } catch { }
 				}
 
-				$(".annotation").fadeIn(600);
+				$(".annotation").fadeIn(600, "swing", function() { 
+					setState(IN_WORLDVIEW); 
+					controls.worldViewCameraConfig = true;
+				});
 			}
 		}
 
 		//CHANGE STATE
-		function setState(newState) {
-			STATE = newState;
+		function setState(newState, shouldFadeOut = true) {
+			WORLD_STATE = newState;
+
+			if (WORLD_STATE == IN_ENVIRONMENT) {
+				$(".OnlyInEnvironment").fadeIn(500);
+			}
+			else
+			{
+				if (shouldFadeOut) {
+					$(".OnlyInEnvironment").fadeOut(500);
+				}
+				else
+				{
+					$(".OnlyInEnvironment").hide();
+				}
+			}
+
+			if (WORLD_STATE == IS_TRACKING_VIDEO) {
+				$(".OnlyInVideo").fadeIn(500);
+			}
+			else
+			{
+				if (shouldFadeOut) {
+					$(".OnlyInVideo").fadeOut(500);
+				}
+				else
+				{
+					$(".OnlyInVideo").hide();
+				}
+			}
+		}
+
+		//SHOW USER FEEDBACK 
+		function userFeedbackPopup(text) {
+			$(".ARTSTATION_UserFeedback").hide();
+			$(".ARTSTATION_UserFeedback").text(text);
+			$(".ARTSTATION_UserFeedback").fadeIn(500).delay(1000).fadeOut(500);
 		}
 
 		//PLAY VIDEO
-		function playVideo(video_id) {
+		function playVideo(video_id, reset=true) {
 			var video_player = document.getElementById(VIDEO[video_id].ElementID); 
+    		if (reset) {
+    			try { viewer.scene.scene.traverse((node) => { 
+    				if (node.uuid == VIDEO[video_id].UUID) {
+		    			var new_position = new THREE.Vector3(
+		                    VIDEO[video_id].PositionArray[0][0], 
+		                    VIDEO[video_id].PositionArray[0][1], 
+		                    VIDEO[video_id].PositionArray[0][3]);
+		                var coords = ConvertToUTM(new_position.x, new_position.y);
+		                var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_id].LocationDataIndex].Z_Offset);
+
+		        		node.position.x = VIDEO_NEW_POSITION.x;
+		        		node.position.y = VIDEO_NEW_POSITION.y;
+		        		node.position.z = VIDEO_NEW_POSITION.z;
+    				}
+        		}); } catch { }
+    			video_player.currentTime = 0;
+    		}
     		video_player.play(); 
-    		try { viewer.scene.scene.traverse((node) => { if (node.uuid == VIDEO[video_id].UUID) { node.visible = true; } }); } catch { }
+    		var marker_object = null;
+    		var video_object = null;
+    		try { viewer.scene.scene.traverse((node) => { 
+    			if (node.uuid == VIDEO[video_id].MarkerUUID) { 
+    				marker_object = node;
+    			} 
+    			if (node.uuid == VIDEO[video_id].UUID) { 
+    				video_object = node;
+    			} 
+    		});} catch { }
+		    var MARKER_TWEEN = new TWEEN.Tween(marker_object.material).to({opacity: 0}, 500);
+		    MARKER_TWEEN.onComplete(function(){
+		    	marker_object.visible = false;
+		    	video_object.visible = true;
+            	new TWEEN.Tween(video_object.material).to({opacity: 1}, 500).start();
+		    });
+		    MARKER_TWEEN.start();
 		}
 
 		//STOP VIDEO
@@ -636,7 +811,23 @@
 			var video_player = document.getElementById(VIDEO[video_id].ElementID); 
 			video_player.pause();
 			video_player.currentTime = 0;
-    		try { viewer.scene.scene.traverse((node) => { if (node.uuid == VIDEO[video_id].UUID) { node.visible = false; } }); } catch { }
+    		var marker_object = null;
+    		var video_object = null;
+    		try { viewer.scene.scene.traverse((node) => { 
+    			if (node.uuid == VIDEO[video_id].MarkerUUID) { 
+    				marker_object = node;
+    			} 
+    			if (node.uuid == VIDEO[video_id].UUID) { 
+    				video_object = node;
+    			} 
+    		}); } catch { }
+		    var VIDEO_TWEEN = new TWEEN.Tween(video_object.material).to({opacity: 0}, 500);
+		    VIDEO_TWEEN.onComplete(function(){
+		    	video_object.visible = false;
+		    	marker_object.visible = true;
+            	new TWEEN.Tween(marker_object.material).to({opacity: 1}, 500).start();
+		    });
+		    VIDEO_TWEEN.start();
 		}
 
 		//PAUSE VIDEO
@@ -645,16 +836,52 @@
 			video_player.pause();
 		}
 
+		//PLAY CURRENT VIDEO
+		function playCurrentVideo() {
+			FOCUSSED_VIDEO_STATE = REQUESTED_PLAY;
+			for (var i = 0; i < VIDEO.length; i++) {
+				if (VIDEO[i].LockCamera == true) {
+					playVideo(i, false);
+				}
+			}
+			userFeedbackPopup("Playing video");
+		}
+
+		//PAUSE CURRENT VIDEO
+		function pauseCurrentVideo() {
+			FOCUSSED_VIDEO_STATE = REQUESTED_PAUSE;
+			for (var i = 0; i < VIDEO.length; i++) {
+				if (VIDEO[i].LockCamera == true) {
+					pauseVideo(i);
+				}
+			}
+			userFeedbackPopup("Paused video");
+		}
+
+		//EXIT CURRENT VIDEO
+		function exitCurrentVideo() {
+			FOCUSSED_VIDEO_STATE = REQUESTED_STOP;
+			for (var i = 0; i < VIDEO.length; i++) {
+				if (VIDEO[i].LockCamera == true) {
+					var controls = viewer.getControls(viewer.scene.view.navigationMode);
+					setState(IS_TRANSITIONING_TO_VIDEO);
+					controls.isTransitioning = true;
+					VIDEO[i].LockCamera = false;
+				}
+			}
+			userFeedbackPopup("Closed video");
+		}
+
 		//DOLLY ZOOM IN
 		var DOLLY_ZOOM_IN = null;
 		function DollyZoomIn() {
-			if (STATE == IN_ENVIRONMENT) {
+			if (WORLD_STATE == IN_ENVIRONMENT) {
 				DOLLY_ZOOM_IN = setInterval(function(){
-					if (DOLLY_COUNTER[0] <= 70) {
+					if (DOLLY_COUNTER[0] <= 50) {
 						DOLLY_COUNTER[0]++;
 						DOLLY_COUNTER[1]--;
 						var controls = viewer.getControls(viewer.scene.view.navigationMode);
-						controls.dollyCamera(0.2);
+						controls.dollyCamera(0.4);
 					}
 				}, 50);
 			}
@@ -663,13 +890,13 @@
 		//DOLLY ZOOM OUT
 		var DOLLY_ZOOM_OUT = null;
 		function DollyZoomOut() {
-			if (STATE == IN_ENVIRONMENT) {
+			if (WORLD_STATE == IN_ENVIRONMENT) {
 				DOLLY_ZOOM_OUT = setInterval(function(){
-					if (DOLLY_COUNTER[1] <= 30) {
+					if (DOLLY_COUNTER[1] <= 15) {
 						DOLLY_COUNTER[0]--;
 						DOLLY_COUNTER[1]++;
 						var controls = viewer.getControls(viewer.scene.view.navigationMode);
-						controls.dollyCamera(-0.2);
+						controls.dollyCamera(-0.4);
 					}
 				}, 50);
 			}
