@@ -71,7 +71,7 @@
 			z-index: 950;
 		}
 		#ARTSTATION_ControlPanel {
-			z-index: 999;
+			z-index: 998;
 		}
 		.annotation-label {
 			text-transform: capitalize;
@@ -79,6 +79,7 @@
 		.annotation {
 			margin-top: -20px;
     		margin-left: 13px;
+    		cursor: default !important;
 		}
 		.ARTSTATION_UserFeedback {
 			position: absolute;
@@ -88,7 +89,7 @@
 			font-size: 35px;
 			color: white;
 			text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;  
-			z-index: 999;
+			z-index: 998;
 			display: none;
 			text-transform: uppercase;
 		}
@@ -102,6 +103,16 @@
 				top: 10px;
 			}
 		}
+		.ARTSTATION_FadeCover {
+			position:absolute;
+			top:0;
+			bottom:0;
+			left:0;
+			right:0;
+			background: black;
+			z-index:999;
+			display:none;
+		}
 	</style>
 </head>
 
@@ -113,6 +124,7 @@
 	<script src="SCRIPTS/perfect-scrollbar/js/perfect-scrollbar.jquery.js"></script>
 	<script src="SCRIPTS/jquery-ui/jquery-ui.min.js"></script>
 	<script src="SCRIPTS/three.js/build/three.js"></script>
+    <script src="SCRIPTS/three.js/GLTFLoader.js"></script>
 	<script src="SCRIPTS/other/BinaryHeap.js"></script>
 	<script src="SCRIPTS/tween/Tween.js"></script>
 	<script src="SCRIPTS/d3/d3.js"></script>
@@ -127,6 +139,9 @@
 	<script src="SCRIPTS/mobile-detect/mobile-detect.js"></script>
 	<script src="SCRIPTS/stats/stats.js"></script>
 	<!--<script src="SCRIPTS/ARTSTATION/main.js"></script>-->
+
+	<!-- ARTSTATION Black Fade Cover -->
+	<div class="ARTSTATION_FadeCover"></div>
 
 	<!-- ARTSTATION Camera Dolly Buttons -->
 	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
@@ -186,12 +201,15 @@
 		<div id="potree_render_area">
 			<div id="cesiumContainer"></div>			
 		</div>
-		<!--<div id="potree_sidebar_container"> </div>-->
+		<div id="potree_sidebar_container"> </div>
 	</div>	
 
 	<script>
 		//SHOW CONTROLS MODAL (WIP)
 		$("#ARTSTATION_ControlPanel").modal("show");
+
+		//DEFINE SETTINGS
+		var BLACKSCREEN_TRANSITIONS_ENABLED = false;
 
 		//DEFINE DATA STORES
 		var VIDEO = [];
@@ -302,17 +320,16 @@
 		//SHOW DEBUG STATS
 		var stats = new Stats();
 		stats.showPanel(0);
-		document.body.appendChild(stats.dom);
+		//document.body.appendChild(stats.dom);
 
-		/*
+		//ENABLE DEMO PANEL
 		viewer.loadGUI(() => {
 			viewer.setLanguage('en');
 			$("#menu_appearance").next().show();
 			$("#menu_tools").next().show();
-			$("#menu_scene").next().show();
-			viewer.toggleSidebar();
+			//$("#menu_scene").next().show();
+			//viewer.toggleSidebar();
 		});
-		*/
 
 		//LOAD FIELD
 		loadLocation(
@@ -320,6 +337,7 @@
 			50, 
 			function(location) { 
 				createVideo(location, "edited"); 
+				createVideo(location, "DJI_0006"); 
 			}
 		);
 
@@ -451,7 +469,7 @@
 		}
 
 		//CREATE A VIDEO IN WORLD
-		function createVideo(locationIndex, videoName, videoThumbnail="replace_me.png") {
+		function createVideo(locationIndex, videoName, dataSource="srt") {
 		    //CREATE VIDEO ELEMENT
 		    var video_element = document.createElement("video");
 		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
@@ -482,65 +500,84 @@
 		    video_plane_mesh.visible = false;
 		    viewer.scene.scene.add(video_plane_mesh);
 
-		    //CREATE MARKER MESH
-		    var marker_geometry = new THREE.BoxGeometry(10, 10, 10);
-		    var marker_texture = new THREE.TextureLoader().load("http://assets.artstation.mattfiler.co.uk/IMAGES/" + videoThumbnail);
-		    marker_texture.crossOrigin = 'anonymous';
-			var marker_material = new THREE.MeshBasicMaterial({color: 0xffffff, map: marker_texture, transparent: true, opacity: 0});
-			var marker = new THREE.Mesh(marker_geometry, marker_material);
-			marker.name = "ARTSTATION_VideoMarker";
-		    viewer.scene.scene.add(marker);
+		    var GLTF_Loader = new THREE.GLTFLoader();
+		    GLTF_Loader.setCrossOrigin("anonymous");
+		    GLTF_Loader.load("http://assets.artstation.mattfiler.co.uk/MESHES/video_marker/video_marker.gltf", 
+		    function (GLTF_File) {
+		        GLTF_File.scene.traverse((node) => {       
+		            if (node.isMesh && node.name == "camera") {
+		    			//CREATE MARKER MESH
+			            node.name = "ARTSTATION_VideoMarker";
+						viewer.scene.scene.add(node);
 
-		    //GET VIDEO POSITION DATA
-		    var video_position_data = [];
-		    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&srt=" + videoName; //REMOTE
-		    //var video_position_data_path = "API/gps_parser.json"; //LOCAL
-		    $.getJSON(video_position_data_path, function(data) {
-		        $.each(data, function(key, val) {
-		            video_position_data.push(val);
+					    //GET VIDEO POSITION DATA
+					    var video_position_data = [];
+					    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&" + dataSource + "=" + videoName; //REMOTE
+					    //var video_position_data_path = "API/gps_parser.json"; //LOCAL
+					    $.getJSON(video_position_data_path, function(data) {
+					        $.each(data, function(key, val) {
+					            video_position_data.push(val);
+					        });
+					    });
+
+					    //ADD VIDEO TO GLOBAL VIDEO ARRAY
+					    var video_data = {
+					        Name: videoName,
+					        ElementID: LOCATION[locationIndex].Name+"_"+videoName,
+					        LocationDataIndex: locationIndex, 
+					        UUID: video_plane_mesh.uuid,
+					        ImportedTrackData: video_position_data,
+					        LockCamera: false,
+					        MarkerUUID: node.uuid
+					    };
+					    var video_id = VIDEO.push(video_data);
+					    video_id -= 1;
+
+					    //MOVE VIDEO FROM GPS
+					    moveVideoFromGPS(video_id);
+		            }
 		        });
 		    });
-
-		    //ADD VIDEO TO GLOBAL VIDEO ARRAY
-		    var video_data = {
-		        Name: videoName,
-		        ElementID: LOCATION[locationIndex].Name+"_"+videoName,
-		        LocationDataIndex: locationIndex, 
-		        UUID: video_plane_mesh.uuid,
-		        PositionArray: video_position_data,
-		        LockCamera: false,
-		        MarkerUUID: marker.uuid
-		    };
-		    var video_id = VIDEO.push(video_data);
-		    video_id -= 1;
-
-		    //MOVE VIDEO FROM GPS
-		    moveVideoFromGPS(video_id);
 		}
 
 		//MOVE VIDEO ON TIME UPDATE FROM GPS DATA
 		function moveVideoFromGPS(video_index) {
 		    var major_time_milestone = 0;
-		    var previous_acted_milestone = -1;
 		    var camera_is_locked = false;
+		    var run_count = 0;
 			var controls = viewer.getControls(viewer.scene.view.navigationMode);
 		    $("#"+VIDEO[video_index].ElementID).on("timeupdate", function(event){
-		        major_time_milestone = Math.floor(this.currentTime);
-		        if (major_time_milestone != previous_acted_milestone) {
-		            previous_acted_milestone = major_time_milestone;
+		        if (Math.floor(this.currentTime) == 0) {
+		        	run_count = 0;
+		        }
+		        if (Math.floor(this.currentTime*1000) >= VIDEO[video_index].ImportedTrackData[run_count][4]) {
 		            try {
 		                viewer.scene.scene.traverse((node) => {      
 		                    if (node.uuid == VIDEO[video_index].UUID) {
 		                        var new_position = new THREE.Vector3(
-		                            VIDEO[video_index].PositionArray[major_time_milestone+1][0], 
-		                            VIDEO[video_index].PositionArray[major_time_milestone+1][1], 
-		                            VIDEO[video_index].PositionArray[major_time_milestone+1][3]);
+		                            VIDEO[video_index].ImportedTrackData[run_count+1][0], 
+		                            VIDEO[video_index].ImportedTrackData[run_count+1][1], 
+		                            VIDEO[video_index].ImportedTrackData[run_count+1][3]);
 		                        var coords = ConvertToUTM(new_position.x, new_position.y);
-		                        var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset);
+		                        var VIDEO_NEW_POSITION = new THREE.Vector3(
+		                        	coords[0], 
+		                        	coords[1], 
+		                        	parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset);
+		                        var VIDEO_NEW_ROTATION = new THREE.Euler(
+		                        	VIDEO[video_index].ImportedTrackData[run_count+1][6] * Math.PI / 180, 
+		                        	VIDEO[video_index].ImportedTrackData[run_count+1][5] * Math.PI / 180, 
+		                        	VIDEO[video_index].ImportedTrackData[run_count+1][7] * Math.PI / 180, 
+		                        	'XYZ');
+		                        var TWEEN_TIME = VIDEO[video_index].ImportedTrackData[run_count+1][4] - VIDEO[video_index].ImportedTrackData[run_count][4];
 
-		                    	var VIDEO_TWEEN = new TWEEN.Tween(node.position).to(VIDEO_NEW_POSITION, 1000);
-		                    	VIDEO_TWEEN.onStart(() => {
-									//LOCK CAMERA TO VIDEO WHEN REQUESTED
+		                    	var VIDEO_TWEEN_POSITION = new TWEEN.Tween(node.position).to(VIDEO_NEW_POSITION, TWEEN_TIME);
+		                    	VIDEO_TWEEN_POSITION.onStart(() => {
+		                    		/*
+		                    		node.rotation.x = VIDEO_NEW_ROTATION.x;
+		                    		node.rotation.y = VIDEO_NEW_ROTATION.y;
+		                    		node.rotation.z = VIDEO_NEW_ROTATION.z;
+		                    		viewer.scene.getActiveCamera().rotation = VIDEO_NEW_ROTATION;
+									*/
 			                    	if (VIDEO[video_index].LockCamera) {
 										$(".annotation").hide();
 			                    		controls.isTransitioning = true;
@@ -549,24 +586,20 @@
 
 			                        	var CAMERA_NEW_POSITION = new THREE.Vector3(VIDEO_NEW_POSITION.x - 20, VIDEO_NEW_POSITION.y, VIDEO_NEW_POSITION.z);
 			                        	
-			                        	var CAMERA_TWEEN = new TWEEN.Tween(viewer.scene.view.position).to(CAMERA_NEW_POSITION, 1000);
+			                        	var CAMERA_TWEEN = new TWEEN.Tween(viewer.scene.view.position).to(CAMERA_NEW_POSITION, TWEEN_TIME);
 										CAMERA_TWEEN.onUpdate(() => {
 											viewer.scene.view.lookAt(node.position);
 											if (FOCUSSED_VIDEO_STATE == REQUESTED_PAUSE) {
-												VIDEO_TWEEN.pause();
+												VIDEO_TWEEN_POSITION.pause();
 												CAMERA_TWEEN.pause();
 												FOCUSSED_VIDEO_STATE = HAS_PAUSED;
 											}
 											if (FOCUSSED_VIDEO_STATE == REQUESTED_PLAY) {
-												VIDEO_TWEEN.play();
+												VIDEO_TWEEN_POSITION.play();
 												CAMERA_TWEEN.play();
 												FOCUSSED_VIDEO_STATE = IS_PLAYING;
 											}
 											if (FOCUSSED_VIDEO_STATE == REQUESTED_STOP) {
-												/*
-												VIDEO_TWEEN.stop();
-												CAMERA_TWEEN.stop();
-												*/
 												FOCUSSED_VIDEO_STATE = HAS_STOPPED;
 											}
 										});
@@ -586,7 +619,21 @@
 													}
 												}
 
-												controls.zoomToLocation({x:0,y:0}, false, 1000, true, function() {}, {
+												var transition_time = 1000;
+												if (BLACKSCREEN_TRANSITIONS_ENABLED) {
+													transition_time = 10;
+												}
+
+												controls.zoomToLocation({x:0,y:0}, false, transition_time, true, function() {
+													/*
+													new TWEEN.Tween(viewer.scene.view.yaw).to(CAMERA_UNLOCK_DATA.yaw, 1000).start();
+													new TWEEN.Tween(viewer.scene.view.pitch).to(CAMERA_UNLOCK_DATA.pitch, 1000).start();
+													new TWEEN.Tween(viewer.scene.view._pitch).to(CAMERA_UNLOCK_DATA._pitch, 1000).start();
+													new TWEEN.Tween(viewer.scene.view.maxPitch).to(CAMERA_UNLOCK_DATA.maxPitch, 1000).start();
+													new TWEEN.Tween(viewer.scene.view.minPitch).to(CAMERA_UNLOCK_DATA.minPitch, 1000).start();
+													new TWEEN.Tween(viewer.scene.view.radius).to(CAMERA_UNLOCK_DATA.radius, 1000).start();
+													*/
+												}, {
 													distance: 100, 
 													location: CAMERA_UNLOCK_DATA.focusPoint, 
 													point: {position: CAMERA_UNLOCK_DATA.focusPoint}, 
@@ -607,10 +654,11 @@
 										CAMERA_TWEEN.start();
 			                    	}
 								});
-		                    	VIDEO_TWEEN.start();
+		                    	VIDEO_TWEEN_POSITION.start();
 		                    }
 		                });
 		            } catch { }
+		            run_count++;
 		        }
 		    });
 		}
@@ -640,8 +688,8 @@
 							if (LOCATION[VIDEO[i].LocationDataIndex].UUID == controls.clickedEnvironmentUUID) {
 								try { viewer.scene.scene.traverse((node) => {
 									if (node.uuid == VIDEO[i].MarkerUUID) {
-										var marker_coords = ConvertToUTM(VIDEO[i].PositionArray[0][0], VIDEO[i].PositionArray[0][1]);
-				                        var marker_position = new THREE.Vector3(marker_coords[0], marker_coords[1], parseFloat(VIDEO[i].PositionArray[0][3]) + 25 + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset);
+										var marker_coords = ConvertToUTM(VIDEO[i].ImportedTrackData[0][0], VIDEO[i].ImportedTrackData[0][1]);
+				                        var marker_position = new THREE.Vector3(marker_coords[0], marker_coords[1], parseFloat(VIDEO[i].ImportedTrackData[0][3]) + 25 + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset);
 				                        node.position.x = marker_position.x;
 				                        node.position.y = marker_position.y;
 				                        node.position.z = marker_position.z;
@@ -679,6 +727,7 @@
 					for (var x=0; x<VIDEO.length;x++) {
 						if (VIDEO[x].MarkerUUID == intersects[i].object.uuid) {
 							if (VIDEO[x].LockCamera == false) {
+								//TransitionHide();
 								setState(IS_TRANSITIONING_TO_VIDEO);
 								controls.isTransitioning = true;
 								CAMERA_UNLOCK_DATA.yaw = viewer.scene.view.yaw;
@@ -773,9 +822,9 @@
     			try { viewer.scene.scene.traverse((node) => { 
     				if (node.uuid == VIDEO[video_id].UUID) {
 		    			var new_position = new THREE.Vector3(
-		                    VIDEO[video_id].PositionArray[0][0], 
-		                    VIDEO[video_id].PositionArray[0][1], 
-		                    VIDEO[video_id].PositionArray[0][3]);
+		                    VIDEO[video_id].ImportedTrackData[0][0], 
+		                    VIDEO[video_id].ImportedTrackData[0][1], 
+		                    VIDEO[video_id].ImportedTrackData[0][3]);
 		                var coords = ConvertToUTM(new_position.x, new_position.y);
 		                var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_id].LocationDataIndex].Z_Offset);
 
@@ -860,13 +909,17 @@
 
 		//EXIT CURRENT VIDEO
 		function exitCurrentVideo() {
-			FOCUSSED_VIDEO_STATE = REQUESTED_STOP;
 			for (var i = 0; i < VIDEO.length; i++) {
 				if (VIDEO[i].LockCamera == true) {
-					var controls = viewer.getControls(viewer.scene.view.navigationMode);
-					setState(IS_TRANSITIONING_TO_VIDEO);
-					controls.isTransitioning = true;
-					VIDEO[i].LockCamera = false;
+					playVideo(i, false);
+					FOCUSSED_VIDEO_STATE = REQUESTED_STOP;
+					var current_video = i;
+					TransitionHide(500,1000,500,function() {
+						var controls = viewer.getControls(viewer.scene.view.navigationMode);
+						setState(IS_TRANSITIONING_TO_VIDEO);
+						controls.isTransitioning = true;
+						VIDEO[current_video].LockCamera = false;
+					});
 				}
 			}
 			userFeedbackPopup("Closed video");
@@ -906,6 +959,17 @@
 		function StopDollyZoom() {
 			clearInterval(DOLLY_ZOOM_IN);
 			clearInterval(DOLLY_ZOOM_OUT);
+		}
+
+		//BLACK FADE TRANSITION
+		function TransitionHide(speedIn=500, speedOut=1000, speedDelay=500, callback=function(){}) {
+			if (BLACKSCREEN_TRANSITIONS_ENABLED) {
+				$(".ARTSTATION_FadeCover").fadeIn(speedIn, callback).delay(speedDelay).fadeOut(speedOut);
+			}
+			else
+			{
+				callback();
+			}
 		}
 	</script>
 </body>

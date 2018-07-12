@@ -43,9 +43,9 @@
 			    		"0", 
 			    		$line_data_raw[2], 
 			    		$line_data_raw[10], 
-			    		$line_data_raw[60], 
-			    		$line_data_raw[61], 
-			    		$line_data_raw[62], 
+			    		$line_data_raw[22], 
+			    		$line_data_raw[23], 
+			    		$line_data_raw[24], 
 			    		$line_data_raw[63], 
 			    		$line_data_raw[64], 
 			    		$line_data_raw[65]);
@@ -63,12 +63,12 @@
 		GPS HEIGHT, 
 		ALTITUDE, 
 		FLIGHT TIME (MS), 
-		DRONE PITCH,
-		DRONE ROLL, 
-		DRONE YAW,
-		GIMBAL PITCH, 
-		GIMBAL ROLL, 
-		GIMBAL YAW
+		DRONE PITCH (deg),
+		DRONE ROLL (deg), 
+		DRONE YAW (deg),
+		GIMBAL PITCH (raw), 
+		GIMBAL ROLL (raw), 
+		GIMBAL YAW (raw)
 	*/
 	$json_data = json_encode($json_data);
 	echo $json_data;

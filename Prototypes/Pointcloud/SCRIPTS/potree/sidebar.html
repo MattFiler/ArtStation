@@ -1,76 +1,69 @@
 
+<!-- 
+	potree Sidebar Controls created by Markus Schütz
+	Modified by Matt Filer for ARTSTATION demo 
+-->
+
 <div id="sidebar_root" 
 	class="perfect_scrollbar navmenu navmenu-default navmenu-fixed-left unselectable" 
 	style="position: absolute; min-height: 100%; height: 100%; width: calc(100% - 1px); border-right: 1px solid black !important; overflow: hidden">
 	<div id="sidebar_header">
 		<span id="potree_branding" class="potree_sidebar_brand" style="display: flex; flex-direction: row">
-			<a href="http://potree.org" target="_blank">potree.org</a> 
-			<span style="margin: 0px 3px; color: #9AA1A4"> - </span> 
-			<a href="https://github.com/potree/potree" target="_blank">github</a>
-			<span style="margin: 0px 3px; color: #9AA1A4"> - </span> 
-			<a href="https://twitter.com/m_schuetz" target="_blank">twitter</a>
-			<span style="flex-grow: 1"></span>
-			<span id="potree_version_number" style="color: #9AA1A4; font-size: 80%; font-weight: 100"></span>
+			<h3 style="margin-top: 10px;">ARTSTATION Demo Controls</h3>
 		</span>
-		<div id="potree_languages" style="font-family:arial;"></div>
 	</div>
 	<div>
 	<div id="potree_menu" class="accordion">
 	
 		<!-- APPEARANCE -->
-		<h3 id="menu_appearance"><span data-i18n="tb.rendering_opt"></span></h3>
+		<h3 id="menu_appearance" style="display:none;"><span data-i18n="tb.rendering_opt"></span></h3>
 		<div>
 			<ul class="pv-menu-list">
-				<li><span data-i18n="appearance.nb_max_pts"></span>: <span id="lblPointBudget"></span> <div id="sldPointBudget"></div></li>
-				<li><span data-i18n="appearance.field_view"></span>: <span id="lblFOV"></span><div id="sldFOV"></div></li>
+				<li style="display:none;"><span data-i18n="appearance.field_view"></span>: <span id="lblFOV"></span><div id="sldFOV"></div></li>
+				
+				<div class="divider"><span>Demo Background</span></div>
 
-				<div class="divider"><span>Eye-Dome-Lighting</span></div>
+				<li>
+					<selectgroup id="background_options">
+						<option id="background_options_skybox" value="skybox">SKYBOX</option>
+						<option id="background_options_gradient" value="gradient">GRADIENT</option>
+						<option id="background_options_black" value="black">BLACK</option>
+						<option id="background_options_white" value="white">WHITE</option>
+						<option id="background_options_none" value="null">MAP</option>
+					</selectgroup>
+				</li>
+
+				<div class="divider"><span>Demo Quality/Style</span></div>
+
+				<li>
+					<selectgroup id="splat_quality_options">
+						<option id="splat_quality_options_standard" value="standard">SQUARES</option>
+						<option id="splat_quality_options_hq" value="hq">CIRCLES</option>
+					</selectgroup>
+				</li>
+				
+				<li><span data-i18n="appearance.nb_max_pts"></span>: <span id="lblPointBudget"></span> <div id="sldPointBudget"></div></li>
+				<li><span data-i18n="appearance.min_node_size"></span>: <span id="lblMinNodeSize"></span><div id="sldMinNodeSize"></div></li>
+
+				<div class="divider"><span>Demo Point Outlines</span></div>
 
 				<li><label><input type="checkbox" id="chkEDLEnabled"/><span data-i18n="appearance.edl_enable"></span></label></li>
 				<li><span data-i18n="appearance.edl_radius"></span>: <span id="lblEDLRadius"></span><div id="sldEDLRadius"></div></li>
 				<li><span data-i18n="appearance.edl_strength"></span>: <span id="lblEDLStrength"></span><div id="sldEDLStrength"></div></li>
-				
-				<div class="divider"><span>Background</span></div>
 
-				<li>
-					<selectgroup id="background_options">
-						<option id="background_options_skybox" value="skybox">Skybox</option>
-						<option id="background_options_gradient" value="gradient">Gradient</option>
-						<option id="background_options_black" value="black">Black</option>
-						<option id="background_options_white" value="white">White</option>
-						<option id="background_options_none" value="null">None</option>
-					</selectgroup>
-				</li>
+				<div class="divider"><span>Debug LOD</span></div>
 
-				<div class="divider"><span>Other</span></div>
-
-				<li>
-					<selectgroup id="splat_quality_options">
-						<option id="splat_quality_options_standard" value="standard">Standard</option>
-						<option id="splat_quality_options_hq" value="hq">High Quality</option>
-					</selectgroup>
-				</li>
-				
-				<li><span data-i18n="appearance.min_node_size"></span>: <span id="lblMinNodeSize"></span><div id="sldMinNodeSize"></div></li>
 				<li><label><input id="show_bounding_box" type="checkbox" /><span data-i18n="appearance.box"></span></label></li>
-				<li><label><input id="set_freeze" type="checkbox" /><span data-i18n="appearance.freeze"></span></label></li>
 			</ul>
 			
 		</div>
 		
 		<!-- TOOLS -->
-		<h3 id="menu_tools"><span data-i18n="tb.tools_opt"></span></h3>
+		<h3 id="menu_tools" style="display:none;"><span data-i18n="tb.tools_opt"></span></h3>
 		<div class="pv-menu-list">
-
-			<div class="divider" style="padding: 10px 0px 15px 0px"><span>Measurement</span></div>
-
-			<li id="tools"></li>
-
-			<div class="divider" style="padding: 10px 0px 15px 0px"><span>Clipping</span></div>
-
-			<li id="clipping_tools"></li>
-
-			<li>
+			<li style="display:none;" id="tools"></li>
+			<li style="display:none;" id="clipping_tools"></li>
+			<li style="display:none;">
 				<selectgroup id="cliptask_options">
 					<option id="cliptask_options_none" value="NONE">None</option>
 					<option id="cliptask_options_highlight" value="HIGHLIGHT">Highlight</option>
@@ -78,24 +71,31 @@
 					<option id="cliptask_options_show_outside" value="SHOW_OUTSIDE">Outside</option>
 				</selectgroup>
 			</li>
-
-			<li>
+			<li style="display:none;">
 				<selectgroup id="clipmethod_options">
 					<option id="clipmethod_options_any" value="INSIDE_ANY">Inside Any</option>
 					<option id="clipmethod_options_all" value="INSIDE_ALL">Inside All</option>
 				</selectgroup>
 			</li>
 			
-			<div class="divider" style="padding: 10px 0px 15px 0px"><span>Navigation</span></div>
+			<div class="divider" style="padding: 10px 0px 15px 0px"><span>Demo Navigation</span></div>
 
 			<li id="navigation"></li>
 
-			<li><span data-i18n="appearance.move_speed"></span>: <span id="lblMoveSpeed"></span><div id="sldMoveSpeed"></div></li>
+			<li style="display:none;"><span data-i18n="appearance.move_speed"></span>: <span id="lblMoveSpeed"></span><div id="sldMoveSpeed"></div></li>
+
+			<div class="divider" style="padding: 10px 0px 15px 0px"><span>Old Mesh Version</span></div>
+
+			<li><a href="http://mesh.artstation.mattfiler.co.uk/"><button>Mesh</button></a></li>
+
+			<div class="divider" style="padding: 10px 0px 15px 0px"><span>Enable Black Fade Transitions</span></div>
+
+			<li><button style="cursor:pointer;" onclick="BLACKSCREEN_TRANSITIONS_ENABLED = !BLACKSCREEN_TRANSITIONS_ENABLED;">Toggle Transitions</button></li>
 		</div>
 
 		<!-- SCENE -->
-		<h3 id="menu_scene"><span data-i18n="tb.scene_opt"></span></h3>
-		<div class="pv-menu-list">
+		<h3 id="menu_scene" style="display:none;"><span data-i18n="tb.scene_opt"></span></h3>
+		<div class="pv-menu-list" style="display:none;">
 
 			<div id="scene_export"></div>
 
@@ -109,14 +109,14 @@
 		</div>
 
 		<!-- Classification -->
-		<h3 id="menu_classification"><span data-i18n="tb.classification_filter_opt"></span></h3>
-		<div>
+		<h3 id="menu_classification" style="display:none;"><span data-i18n="tb.classification_filter_opt"></span></h3>
+		<div style="display:none;">
 			<ul id="classificationList" class="pv-menu-list"></ul>
 		</div>
 		
 		<!-- ABOUT -->
-		<h3 id="menu_about"><span data-i18n="tb.about_opt"></span></h3>
-		<div>
+		<h3 id="menu_about" style="display:none;"><span data-i18n="tb.about_opt"></span></h3>
+		<div style="display:none;">
 			<ul class="pv-menu-list">
 				<li><a href="http://potree.org" target="_blank">Potree</a> is a viewer for large point cloud / LIDAR data sets, developed at the Vienna University of Technology. 
 				<a href="https://github.com/potree/potree" target="_blank">(github)</a>

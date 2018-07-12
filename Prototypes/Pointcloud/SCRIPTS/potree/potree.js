@@ -1,6 +1,6 @@
 /*
 
-	Original potree script created by mrdoob.
+	Original potree script created by Markus Schütz.
 	Modified by Matt Filer for ARTSTATION.
 
 */
@@ -20997,13 +20997,13 @@ ENDSEC
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/earth_controls_1.png',
-				'[title]tt.earth_control',
+				'[title]Click and Drag With Manual Zoom', //MFILER-120718: Changed control description
 				() => { this.viewer.setNavigationMode(EarthControls); }
 			));
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/fps_controls.svg',
-				'[title]tt.flight_control',
+				'[title]Keyboard Controls', //MFILER-120718: Changed control description
 				() => {
 					this.viewer.setNavigationMode(FirstPersonControls);
 					this.viewer.fpControls.lockElevation = false;
@@ -21012,7 +21012,7 @@ ENDSEC
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/helicopter_controls.svg',
-				'[title]tt.heli_control',
+				'[title]Keyboard Controls With Locked Height', //MFILER-120718: Changed control description
 				() => { 
 					this.viewer.setNavigationMode(FirstPersonControls);
 					this.viewer.fpControls.lockElevation = true;
@@ -21021,10 +21021,10 @@ ENDSEC
 
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/orbit_controls.svg',
-				'[title]tt.orbit_control',
+				'[title]Double Click to Move No Zoom', //MFILER-120718: Changed control description
 				() => { this.viewer.setNavigationMode(OrbitControls); }
 			));
-
+			/* MFILER-120718 START: Disabling box control buttons & others.
 			elNavigation.append(this.createToolIcon(
 				Potree.resourcePath + '/icons/focus.svg',
 				'[title]tt.focus_control',
@@ -21077,19 +21077,18 @@ ENDSEC
 				"[title]tt.bottom_view_control",
 				() => {this.viewer.setBottomView();}
 			));
+			MFILER-120718 END */
 
 
-
-
-
+			//MFILER-120718: Added "display:none;" style.
 			let elCameraProjection = $(`
-			<selectgroup id="camera_projection_options">
+			<selectgroup style="display:none;" id="camera_projection_options">
 				<option id="camera_projection_options_perspective" value="PERSPECTIVE">Perspective</option>
 				<option id="camera_projection_options_orthigraphic" value="ORTHOGRAPHIC">Orthographic</option>
 			</selectgroup>
 		`);
 			elNavigation.append(elCameraProjection);
-			elCameraProjection.selectgroup({title: "Camera Projection"});
+			elCameraProjection.selectgroup({title: ""}); //MFILER-120718: Remove "Camera Projection" title
 			elCameraProjection.find("input").click( (e) => {
 				this.viewer.setCameraMode(CameraMode[e.target.value]);
 			});
@@ -21144,7 +21143,7 @@ ENDSEC
 
 			{
 				let elSplatQuality = $("#splat_quality_options");
-				elSplatQuality.selectgroup({title: "Splat Quality"});
+				elSplatQuality.selectgroup({title: ""}); //MFILER-120718: Removing "Splat Quality" title.
 
 				elSplatQuality.find("input").click( (e) => {
 					if(e.target.value === "standard"){
@@ -22962,7 +22961,8 @@ ENDSEC
 				sidebarContainer.css('height', '100%');
 
 				let imgMenuToggle = document.createElement('img');
-				imgMenuToggle.src = new URL(Potree.resourcePath + '/icons/menu_button.svg').href;
+				//imgMenuToggle.src = new URL(Potree.resourcePath + '/icons/menu_button.svg').href;
+				imgMenuToggle.src = new URL('http://assets.artstation.mattfiler.co.uk/IMAGES/demo_controls.png').href; //MFILER-120718: Swapping to ARTSTATION demo button.
 				imgMenuToggle.onclick = this.toggleSidebar;
 				imgMenuToggle.classList.add('potree_menu_toggle');
 
