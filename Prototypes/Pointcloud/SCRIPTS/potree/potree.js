@@ -15,6 +15,10 @@ var LOCAL_DATA_STORE = localforage.createInstance({
 });
 LOCAL_DATA_STORE.setDriver(localforage.INDEXEDDB);
 
+//Configure overrides for tracking camera
+var TRACKING_CAMERA_IS_ENABLED = false;
+var TRACKING_CAMERA_OBJECT = null;
+
 //Data debugging (not totally accurate now IndexedDB is used)
 var CONTENTDEBUG__ASSET_ARRAY = [];
 var CONTENTDEBUG__WASTED_ASSET_COUNT = 0;
@@ -12747,7 +12751,16 @@ void main() {
 		}
 
 		render(){
-			this.viewer.renderer.render(this.scene, this.viewer.scene.getActiveCamera());
+			//MFILER-160718 START: Tracking camera override
+			if (TRACKING_CAMERA_IS_ENABLED) {
+				this.viewer.renderer.render(this.scene, TRACKING_CAMERA_OBJECT);
+				console.log(TRACKING_CAMERA_OBJECT);
+			}
+			else
+			{
+				this.viewer.renderer.render(this.scene, this.viewer.scene.getActiveCamera());
+			}
+			//MFILER-160718 END
 		}
 	}
 
@@ -12973,7 +12986,16 @@ void main() {
 		}
 
 		render(){
-			this.viewer.renderer.render(this.scene, this.viewer.scene.getActiveCamera());
+			//MFILER-160718 START: Tracking camera override
+			if (TRACKING_CAMERA_IS_ENABLED) {
+				this.viewer.renderer.render(this.scene, TRACKING_CAMERA_OBJECT);
+				console.log(TRACKING_CAMERA_OBJECT);
+			}
+			else
+			{
+				this.viewer.renderer.render(this.scene, this.viewer.scene.getActiveCamera());
+			}
+			//MFILER-160718 END
 		}
 
 	}
@@ -13152,7 +13174,16 @@ void main() {
 		}
 
 		render(){
-			this.viewer.renderer.render(this.scene, this.viewer.scene.getActiveCamera());
+			//MFILER-160718 START: Tracking camera override
+			if (TRACKING_CAMERA_IS_ENABLED) {
+				this.viewer.renderer.render(this.scene, TRACKING_CAMERA_OBJECT);
+				console.log(TRACKING_CAMERA_OBJECT);
+			}
+			else
+			{
+				this.viewer.renderer.render(this.scene, this.viewer.scene.getActiveCamera());
+			}
+			//MFILER-160718 END
 		}
 
 	}
@@ -14356,8 +14387,20 @@ void main() {
 				pointcloud.material.useEDL = false;
 			}
 			
-			let activeCam = viewer.scene.getActiveCamera();
+			//let activeCam = viewer.scene.getActiveCamera(); - MFILER160718
 			//viewer.renderer.render(viewer.scene.scenePointCloud, activeCam);
+
+			//MFILER-160718 START: Tracking camera override
+			let activeCam = null;
+			if (TRACKING_CAMERA_IS_ENABLED) {
+				activeCam = TRACKING_CAMERA_OBJECT;
+				console.log(TRACKING_CAMERA_OBJECT);
+			}
+			else
+			{
+				activeCam = this.viewer.scene.getActiveCamera();
+			}
+			//MFILER-160718 END
 			
 			viewer.pRenderer.render(viewer.scene.scenePointCloud, activeCam, null, {
 				clipSpheres: viewer.scene.volumes.filter(v => (v instanceof Potree.SphereVolume)),
@@ -14531,7 +14574,19 @@ void main() {
 				Potree.pointBudget = oldBudget;
 			}
 
-			let camera = viewer.scene.getActiveCamera();
+			//let camera = viewer.scene.getActiveCamera(); - MFILER-160718
+
+			//MFILER-160718 START: Tracking camera override
+			let camera = null;
+			if (TRACKING_CAMERA_IS_ENABLED) {
+				camera = TRACKING_CAMERA_OBJECT;
+				console.log(TRACKING_CAMERA_OBJECT);
+			}
+			else
+			{
+				camera = this.viewer.scene.getActiveCamera();
+			}
+			//MFILER-160718 END
 
 			let lights = [];
 			viewer.scene.scene.traverse(node => {
@@ -15217,7 +15272,7 @@ void main() {
 			// TODO Unused: let controlsTargetPosition = I.location;
 
 			//let animationDuration = 600; - MFILER-050718: Now a function parameter.
-			let easing = TWEEN.Easing.Quartic.Out;
+			let easing = TWEEN.Easing.Cubic.Out; //MFILER-160718: Swapped from TWEEN.Easing.Quartic.Out
 
 			{ // animate
 				let value = {x: 0};
@@ -15679,7 +15734,15 @@ void main() {
 		}
 
 		getActiveCamera() {
-			return this.cameraMode == CameraMode.PERSPECTIVE ? this.cameraP : this.cameraO;		
+			//MFILER-160718 START
+			if (TRACKING_CAMERA_IS_ENABLED) {
+				return TRACKING_CAMERA_OBJECT;
+			}
+			else
+			{
+				return this.cameraMode == CameraMode.PERSPECTIVE ? this.cameraP : this.cameraO;	
+			}
+			//MFILER-160718 END	
 		}
 		
 		initialize(){
@@ -22635,7 +22698,7 @@ ENDSEC
 			let startRadius = view.radius;
 			let endRadius = endPosition.distanceTo(endTarget);
 
-			let easing = TWEEN.Easing.Quartic.Out;
+			let easing = TWEEN.Easing.Cubic.Out; //MFILER-160718: Changing from TWEEN.Easing.Quartic.Out
 
 			{ // animate camera position
 				let pos = startPosition.clone();
