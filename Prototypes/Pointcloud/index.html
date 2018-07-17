@@ -481,7 +481,7 @@
 
 		//CREATE A VIDEO IN WORLD
 		function createVideo(locationIndex, videoName, dataSource="srt") {
-		    //CREATE VIDEO ELEMENT
+		    //Create HTML video element to draw texture from
 		    var video_element = document.createElement("video");
 		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
 		    video_element.id = LOCATION[locationIndex].Name+"_"+videoName;
@@ -489,10 +489,10 @@
 		    video_element.loop = true;
 		    video_element.volume = 0;
 		    video_element.muted = true;
-		    video_element.crossOrigin = 'anonymous';
+		    video_element.crossOrigin = 'anonymous'; //Cross-origin must be enabled to use subdomain
 		    document.body.appendChild(video_element);
 
-		    //CREATE VIDEO MESH
+		    //Create the video plane mesh with HTML element texture
 		    var video_plane = new THREE.PlaneGeometry(20, 12, 1, 1);
 		    var video_elem = document.getElementById(LOCATION[locationIndex].Name+"_"+videoName);
 		    var video_texture = new THREE.VideoTexture(video_elem);
@@ -502,43 +502,42 @@
 		    var video_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: video_texture, transparent: true, opacity: 1}); //opacity needs to be 0 here if fading is re-enabled
 		    var video_plane_mesh = new THREE.Mesh(video_plane, video_material);
 		    video_plane_mesh.material.side = THREE.DoubleSide;
-		    video_plane_mesh.name = "ARTSTATION_VideoPlane";
+		    video_plane_mesh.name = "ARTSTATION_VideoPlane"; 
 		    video_plane_mesh.position.x = 0;
 		    video_plane_mesh.position.y = 0;
 		    video_plane_mesh.position.z = 0;
 		    video_plane_mesh.rotation.y = Math.PI / 2;
 		    video_plane_mesh.rotation.z = Math.PI / 2;
-		    video_plane_mesh.visible = false;
+		    video_plane_mesh.visible = false; //Start off invisible, as we'll only see "markers" in the environment
 		    viewer.scene.scene.add(video_plane_mesh);
 
-		    //CREATE TRACKING CAMERA
-		    var tracking_camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 1, 1000);
+		    //Create tracking camera entity
+		    var tracking_camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 1, 1000); //Configs need updating to match potree
 		    tracking_camera.position.x = 0;
 		    tracking_camera.position.y = 0;
-		    tracking_camera.position.z = 40;
+		    tracking_camera.position.z = 40; //Tracking offset to keep mesh in view
 		    video_plane_mesh.add(tracking_camera);
 
 		    var GLTF_Loader = new THREE.GLTFLoader();
-		    GLTF_Loader.setCrossOrigin("anonymous");
+		    GLTF_Loader.setCrossOrigin("anonymous"); //Using subdomain, cross-origin
 		    GLTF_Loader.load("http://assets.artstation.mattfiler.co.uk/MESHES/video_marker/video_marker.gltf", 
 		    function (GLTF_File) {
 		        GLTF_File.scene.traverse((node) => {       
 		            if (node.isMesh && node.name == "camera") {
-		    			//CREATE MARKER MESH
+		    			//Grab mesh of marker and add to scene
 			            node.name = "ARTSTATION_VideoMarker";
 						viewer.scene.scene.add(node);
 
-					    //GET VIDEO POSITION DATA
+					    //Grab positioning data and save to array
 					    var video_position_data = [];
-					    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&" + dataSource + "=" + videoName; //REMOTE
-					    //var video_position_data_path = "API/gps_parser.json"; //LOCAL
+					    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&" + dataSource + "=" + videoName; 
 					    $.getJSON(video_position_data_path, function(data) {
 					        $.each(data, function(key, val) {
-					            video_position_data.push(val);
+					            video_position_data.push(val); //Add to array
 					        });
 					    });
 
-					    //ADD VIDEO TO GLOBAL VIDEO ARRAY
+					    //Compile video data
 					    var video_data = {
 					        Name: videoName,
 					        ElementID: LOCATION[locationIndex].Name+"_"+videoName,
@@ -549,10 +548,11 @@
 					        VideoMarker: node,
 					        VideoCamera: tracking_camera
 					    };
+					    //Add to global video array
 					    var video_id = VIDEO.push(video_data);
 					    video_id -= 1;
 
-					    //MOVE VIDEO FROM GPS
+					    //Enable video position movement
 					    moveVideoFromGPS(video_id);
 		            }
 		        });
@@ -561,51 +561,50 @@
 
 		//MOVE VIDEO ON TIME UPDATE FROM GPS DATA
 		function moveVideoFromGPS(video_index) {
-		    var major_time_milestone = 0;
 		    var camera_is_locked = false;
 		    var run_count = 0;
 		    var last_time_run = 0;
 		    var current_time_run = 0;
 			var controls = viewer.getControls(viewer.scene.view.navigationMode);
+
 		    $("#"+VIDEO[video_index].ElementID).on("timeupdate", function(event){
+		    	//Reset counters on video loop
 		        if (Math.floor(this.currentTime) == 0) {
 		        	run_count = 0;
 				    last_time_run = 0;
 				    current_time_run = 0;
 		        }
-		        if (Math.floor(this.currentTime*1000) >= VIDEO[video_index].ImportedTrackData[run_count][4]) {
+		        //Update position if new data is available
+		        if (Math.floor(this.currentTime*1000) > VIDEO[video_index].ImportedTrackData[run_count][4]) {
 		        	current_time_run = this.currentTime*1000;
-                    var new_position = new THREE.Vector3(
-                        VIDEO[video_index].ImportedTrackData[run_count+1][0], 
-                        VIDEO[video_index].ImportedTrackData[run_count+1][1], 
-                        VIDEO[video_index].ImportedTrackData[run_count+1][3]);
-                    var coords = ConvertToUTM(new_position.x, new_position.y);
+                    //Compute lat,lon to X,Y using UTM
+                    var coords = ConvertToUTM(VIDEO[video_index].ImportedTrackData[run_count+1][0], VIDEO[video_index].ImportedTrackData[run_count+1][1]);
+                    //Save new position to tween to
                     var VIDEO_NEW_POSITION = new THREE.Vector3(
-                    	coords[0], 
-                    	coords[1], 
-                    	parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset);
+                    	coords[0], //X (lat)
+                    	coords[1], //Y (lon)
+                    	parseFloat(VIDEO[video_index].ImportedTrackData[run_count+1][3]) + 25 + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset); //Z (altitude + offset)
+                    //Save new rotation to tween to
                     var VIDEO_NEW_ROTATION = new THREE.Euler(
                     	VIDEO[video_index].ImportedTrackData[run_count+1][6] * Math.PI / 180, 
                     	VIDEO[video_index].ImportedTrackData[run_count+1][5] * Math.PI / 180, 
                     	VIDEO[video_index].ImportedTrackData[run_count+1][7] * Math.PI / 180, 
                     	'XYZ');
-                    //var TWEEN_TIME = VIDEO[video_index].ImportedTrackData[run_count+1][4] - VIDEO[video_index].ImportedTrackData[run_count][4];
+                    //Compute time to tween
                     var TWEEN_TIME = current_time_run - last_time_run;
 
+                    //Perform tweens
                 	var VIDEO_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_index].VideoMesh.position).to(VIDEO_NEW_POSITION, TWEEN_TIME);
-                	var VIDEO_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_index].VideoMesh.rotation).to(VIDEO_NEW_ROTATION, TWEEN_TIME);
+                	var VIDEO_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_index].VideoMesh.rotation).to({x: VIDEO_NEW_ROTATION.x, y: VIDEO_NEW_ROTATION.y, z: VIDEO_NEW_ROTATION.z}, TWEEN_TIME);
                 	VIDEO_TWEEN_POSITION.onStart(() => {
-                		VIDEO[video_index].VideoMesh.rotation.x = VIDEO_NEW_ROTATION.x;
-                		VIDEO[video_index].VideoMesh.rotation.y = VIDEO_NEW_ROTATION.y;
-                		VIDEO[video_index].VideoMesh.rotation.z = VIDEO_NEW_ROTATION.z;
-
-                		//VIDEO_TWEEN_ROTATION.start();
+                		VIDEO_TWEEN_ROTATION.start();
 						
 						$(".annotation").hide();
                 		controls.isTransitioning = true;
                 		camera_is_locked = true;
 					});
 					VIDEO_TWEEN_POSITION.onComplete(() => {
+						//If exit was requested, perform
 						if (!VIDEO[video_index].LockCamera && camera_is_locked) {
 							stopVideo(video_index);
 							controls.isTransitioning = false;
@@ -615,9 +614,11 @@
 						}
 					});
                 	VIDEO_TWEEN_POSITION.start();
+
+                	//Update counters
+	            	run_count++;
+	        		last_time_run = this.currentTime*1000;
                 }
-	            run_count++;
-	        	last_time_run = this.currentTime*1000;
 		    });
 		}
 
@@ -676,15 +677,23 @@
 				}
 
 				var intersects = raycaster.intersectObjects(video_planes);
+				var video_id = null;
 				for (var i=0; i<intersects.length; i++) {
 					for (var x=0; x<VIDEO.length;x++) {
 						if (VIDEO[x].VideoMarker.uuid == intersects[i].object.uuid) {
 							if (VIDEO[x].LockCamera == false) {
-								playVideo(x);
-								userFeedbackPopup("Starting video");
+								video_id = x;
 							}
 						}	
 					}
+				}
+				if (video_id != null) {
+					playVideo(video_id);
+					userFeedbackPopup("Starting video");
+				}
+				else
+				{
+					console.error("Could not start video. No ID found.");
 				}
 			}
 		}

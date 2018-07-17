@@ -12754,7 +12754,6 @@ void main() {
 			//MFILER-160718 START: Tracking camera override
 			if (TRACKING_CAMERA_IS_ENABLED) {
 				this.viewer.renderer.render(this.scene, TRACKING_CAMERA_OBJECT);
-				console.log(TRACKING_CAMERA_OBJECT);
 			}
 			else
 			{
@@ -12989,7 +12988,6 @@ void main() {
 			//MFILER-160718 START: Tracking camera override
 			if (TRACKING_CAMERA_IS_ENABLED) {
 				this.viewer.renderer.render(this.scene, TRACKING_CAMERA_OBJECT);
-				console.log(TRACKING_CAMERA_OBJECT);
 			}
 			else
 			{
@@ -13177,7 +13175,6 @@ void main() {
 			//MFILER-160718 START: Tracking camera override
 			if (TRACKING_CAMERA_IS_ENABLED) {
 				this.viewer.renderer.render(this.scene, TRACKING_CAMERA_OBJECT);
-				console.log(TRACKING_CAMERA_OBJECT);
 			}
 			else
 			{
@@ -14394,7 +14391,6 @@ void main() {
 			let activeCam = null;
 			if (TRACKING_CAMERA_IS_ENABLED) {
 				activeCam = TRACKING_CAMERA_OBJECT;
-				console.log(TRACKING_CAMERA_OBJECT);
 			}
 			else
 			{
@@ -14580,7 +14576,6 @@ void main() {
 			let camera = null;
 			if (TRACKING_CAMERA_IS_ENABLED) {
 				camera = TRACKING_CAMERA_OBJECT;
-				console.log(TRACKING_CAMERA_OBJECT);
 			}
 			else
 			{
