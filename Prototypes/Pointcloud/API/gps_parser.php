@@ -5,6 +5,9 @@
 	//SRT Parse (DJI Drone Data)
 	if (isset($_GET['srt'])) {
 		$raw_data = file_get_contents("http://assets.artstation.mattfiler.co.uk/VIDEOS/" . $_GET['location'] . "/" . $_GET['srt'] . ".srt");
+		if ($raw_data == "") {
+			$raw_data = file_get_contents("http://assets.artstation.mattfiler.co.uk/VIDEOS/" . $_GET['location'] . "/" . $_GET['srt'] . ".SRT");
+		}
 		$line_count = 0;
 		foreach(preg_split("/((\r?\n)|(\r\n?))/", $raw_data) as $line){
 		    if (substr($line, 0, 3) == "GPS") {
@@ -15,12 +18,12 @@
 		    		$GPS_VALUES[1], 
 		    		$GPS_VALUES[0], 
 		    		$GPS_VALUES[2], 
-		    		$BAROMETER_VALUE, 
+		    		$BAROMETER_VALUE + 25, 
 		    		(string)($line_count * 1000),
+		    		"90", 
 		    		"0", 
 		    		"0", 
-		    		"0", 
-		    		"0", 
+		    		"90", 
 		    		"0", 
 		    		"0");
 		    	array_push($json_data, $line_data);
@@ -43,12 +46,12 @@
 			    		"0", 
 			    		$line_data_raw[2], 
 			    		$line_data_raw[10], 
-			    		$line_data_raw[22], 
-			    		$line_data_raw[23], 
-			    		$line_data_raw[24], 
-			    		$line_data_raw[63], 
-			    		$line_data_raw[64], 
-			    		$line_data_raw[65]);
+			    		($line_data_raw[60] / 10)+90, 
+			    		($line_data_raw[61] / 10), 
+			    		($line_data_raw[62] / 10)*-1, 
+			    		($line_data_raw[63] / 10)+90, 
+			    		($line_data_raw[64] / 10), 
+			    		($line_data_raw[65] / 10)*-1);
 			    	array_push($json_data, $line_data_important);
 		    	}
 			}
@@ -66,9 +69,9 @@
 		DRONE PITCH (deg),
 		DRONE ROLL (deg), 
 		DRONE YAW (deg),
-		GIMBAL PITCH (raw), 
-		GIMBAL ROLL (raw), 
-		GIMBAL YAW (raw)
+		GIMBAL PITCH (deg), 
+		GIMBAL ROLL (deg), 
+		GIMBAL YAW (deg)
 	*/
 	$json_data = json_encode($json_data);
 	echo $json_data;
