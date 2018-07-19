@@ -64,8 +64,26 @@
 		.DollyZoomOut, .ARTSTATION_PauseBtn {
 			margin-left: 111px;
 		}
+		.ARTSTATION_VideoTimer {
+			margin-left: 222px;
+			width: calc(100% - 331px);
+			cursor: default;
+		}
 		.ARTSTATION_RightBtn {
 			right: -1px;
+		}
+		@media (max-width: 768px) {
+			.ARTSTATION_VideoTimer {
+				width: calc(100% - 220px);
+			}
+			.ARTSTATION_RightBtn {
+				top: -1px !important;
+				bottom: auto !important;
+			}
+		}
+		.ARTSTATION_VideoProgressText {
+			position:relative;
+			bottom: 78px;
 		}
 		.modal-backdrop {
 			z-index: 950;
@@ -141,6 +159,14 @@
 		<i class="fas fa-pause"></i>
 	</button>
 
+	<!-- ARTSTATION Video Timer -->
+	<div class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoTimer OnlyInVideo progress">
+		<div class="ARTSTATION_VideoProgressBar progress-bar progress-bar-striped progress-bar-animated" style="width:0%; height:100%;"></div>
+		<div class="ARTSTATION_VideoProgressText">
+			<b><span class="ARTSTATION_CurrentVideoTime">00:00</span> / <span class="ARTSTATION_FullVideoTime">00:00</span></b>
+		</div>
+	</div>
+
 	<!-- ARTSTATION Exit Video -->
 	<button class="ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_ExitBtn OnlyInVideo" onclick="exitCurrentVideo();">
 		<i class="fas fa-times"></i>
@@ -184,32 +210,19 @@
 
 		//DEFINE SETTINGS
 		var BLACKSCREEN_TRANSITIONS_ENABLED = true;
-		var HIDE_MAP_WHEN_TRACKING_VIDEO = true;
+		var HIDE_MAP_WHEN_TRACKING_VIDEO = false;
+		var USE_CESIUM = false;
 
 		//DEFINE DATA STORES
 		var VIDEO = [];
 		var LOCATION = [];
 		var DOLLY_COUNTER = [0,0];
-		var LOADING_PROGRESS = 0;
-		var CAMERA_UNLOCK_DATA = {yaw: 0, _pitch: 0, maxPitch: 0, minPitch: 0, radius: 0, pitch: 0, focusPoint: (0,0,0)};
 
 		//DEFINE WORLD STATES
-		var IN_WORLDVIEW = 0;
-		var IN_ENVIRONMENT = 1;
-		var IS_TRANSITIONING_TO_ENVIRONMENT = 2;
-		var IS_TRACKING_VIDEO = 3;
-		var IS_TRANSITIONING_TO_VIDEO = 4;
-		var IS_TRANSITIONING_TO_WORLDVIEW = 5;
+		var IN_WORLDVIEW = 0; //Using slow drag to look around controls
+		var IN_ENVIRONMENT = 1; //Using double click to move controls
+		var IS_TRACKING_VIDEO = 2; //Using camera locked to video plane
 		var WORLD_STATE = null;
-
-		//DEFINE FOCUSSED VIDEO STATES
-		var REQUESTED_PAUSE = 0;
-		var HAS_PAUSED = 1;
-		var REQUESTED_PLAY = 2;
-		var IS_PLAYING = 3;
-		var REQUESTED_STOP = 4;
-		var HAS_STOPPED = 5;
-		var FOCUSSED_VIDEO_STATE = null;
 
 		//DEFINE POTREE VIEWER
 		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
@@ -253,48 +266,68 @@
 			$(".ARTSTATION_DeviceControls").html("<li><b>Environments</b></li><ul><li>Click to enter from world view.</li><li>Double click to move focus.</li><li>Use left mouse down to rotate camera.</li><li>Zoom in/out with the buttons in the bottom left.</li><li>Exit with the button in the bottom right.</li></ul><li><b>Videos</b></li><ul><li>Click a video marker to play.</li><li>Play/pause with the buttons in the bottom left.</li><li>Exit with the button in the bottom right.</li></ul>");
 		}
 
-		//DEFINE CESIUM VIEWER & OS IMAGE PROVIDER
-		var imageryProvider = new Cesium.BingMapsImageryProvider({
-            url : 'https://dev.virtualearth.net',
-            mapStyle : Cesium.BingMapsStyle.ORDNANCE_SURVEY,
-            culture:"zh-Hans",
-            key:"Ao1f3-REClmcsxcvjPSHCX2Nu2dqScXYKf9YE4R-yd4WGEC_iOQigjGHkd--WNst"
-        });
-		window.cesiumViewer = new Cesium.Viewer('cesiumContainer', {
-			useDefaultRenderLoop: false,
-			animation: false,
-			baseLayerPicker : false,
-			fullscreenButton: false, 
-			geocoder: false,
-			homeButton: false,
-			infoBox: false,
-			sceneModePicker: false,
-			selectionIndicator: false,
-			timeline: false,
-			navigationHelpButton: false,
-			imageryProvider: imageryProvider,
-			terrainProvider: Cesium.createWorldTerrain({
-			    requestVertexNormals: true
-			})
-		});
+		if (USE_CESIUM) {
+			//DEFINE CESIUM VIEWER & OS IMAGE PROVIDER
+			var imageryProvider = new Cesium.BingMapsImageryProvider({
+	            url : 'https://dev.virtualearth.net',
+	            mapStyle : Cesium.BingMapsStyle.ORDNANCE_SURVEY,
+	            culture:"zh-Hans",
+	            key:"Ao1f3-REClmcsxcvjPSHCX2Nu2dqScXYKf9YE4R-yd4WGEC_iOQigjGHkd--WNst"
+	        });
+			window.cesiumViewer = new Cesium.Viewer('cesiumContainer', {
+				useDefaultRenderLoop: false,
+				animation: false,
+				baseLayerPicker : false,
+				fullscreenButton: false, 
+				geocoder: false,
+				homeButton: false,
+				infoBox: false,
+				sceneModePicker: false,
+				selectionIndicator: false,
+				timeline: false,
+				navigationHelpButton: false,
+				imageryProvider: imageryProvider,
+				terrainProvider: Cesium.createWorldTerrain({
+				    requestVertexNormals: true
+				})
+			});
 
-		//CONFIGURE CESIUM VIEWER
-	    window.cesiumViewer.scene.fxaa = false;
-	    window.cesiumViewer.scene.sunBloom = false;
-	    window.cesiumViewer.scene.skyAtmosphere.show = false;
-	    window.cesiumViewer.scene.fog.enabled = false;
-	    window.cesiumViewer.shadows = false;
-	    window.cesiumViewer.terrainShadows = false;
-	    window.cesiumViewer.scene.shadowMap.enabled = false;
-		let cp = new Cesium.Cartesian3(4303414.154026048, 552161.235598733, 4660771.704035539);
-		cesiumViewer.camera.setView({
-			destination : cp,
-			orientation: {
-				heading : 10, 
-				pitch : -Cesium.Math.PI_OVER_TWO * 0.5, 
-				roll : 0.0 
-			}
-		});
+			//CONFIGURE CESIUM VIEWER
+		    window.cesiumViewer.scene.fxaa = false;
+		    window.cesiumViewer.scene.sunBloom = false;
+		    window.cesiumViewer.scene.skyAtmosphere.show = false;
+		    window.cesiumViewer.scene.fog.enabled = false;
+		    window.cesiumViewer.shadows = false;
+		    window.cesiumViewer.terrainShadows = false;
+		    window.cesiumViewer.scene.shadowMap.enabled = false;
+			let cp = new Cesium.Cartesian3(4303414.154026048, 552161.235598733, 4660771.704035539);
+			cesiumViewer.camera.setView({
+				destination : cp,
+				orientation: {
+					heading : 10, 
+					pitch : -Cesium.Math.PI_OVER_TWO * 0.5, 
+					roll : 0.0 
+				}
+			});
+		}
+		else
+		{
+			viewer.scene.getActiveCamera().far = 5000*1000*1000;
+			viewer.setBackground("skybox");
+
+			var map_plane = new THREE.PlaneGeometry(50000, 50000, 1, 1);
+			var map_texture = new THREE.TextureLoader().load("http://assets.artstation.mattfiler.co.uk/IMAGES/replace_me.png");
+			map_texture.crossOrigin = 'anonymous';
+			map_texture.wrapS = THREE.RepeatWrapping;
+			map_texture.wrapT = THREE.RepeatWrapping;
+			map_texture.repeat.set( 4, 4 );
+			var map_material = new THREE.MeshLambertMaterial( { color: 0xffffff, map: map_texture } );
+			var map_plane_mesh = new THREE.Mesh(map_plane, map_material);
+			map_plane_mesh.name="ARTSTATION_FakeMap";
+			map_plane_mesh.position.set(510000, 5700000, 48);
+			map_plane_mesh.material.side = THREE.DoubleSide;
+			viewer.scene.scene.add(map_plane_mesh);
+		}
 
 		//SET INITIAL STATE
 		setState(IN_WORLDVIEW, false);
@@ -315,11 +348,8 @@
 			"field", 
 			50, 
 			function(location) { 
-				//createVideo(location, "edited", "SRT"); 
 				createVideo(location, "DJI_0003"); 
 				createVideo(location, "DJI_0005"); 
-				//createVideo(location, "DJI_0008"); 
-				//createVideo(location, "DJI_0009"); 
 			}
 		);
 
@@ -328,7 +358,7 @@
 			"st_thomas_head", 
 			45, 
 			function(location) { 
-				createVideo(location, "DJI_0023", "srt"); 
+				createVideo(location, "DJI_0023"); 
 			}
 		);
 
@@ -343,7 +373,7 @@
 
 			viewer.render();
 
-			if(window.toMap !== undefined){
+			if(window.toMap !== undefined && USE_CESIUM){
 
 				{
 					let camera = viewer.scene.getActiveCamera();
@@ -394,7 +424,9 @@
 				
 			}
 
-			cesiumViewer.render();
+			if (USE_CESIUM) {
+				cesiumViewer.render();
+			}
 		}
 
 		requestAnimationFrame(loop);
@@ -452,13 +484,13 @@
 		}
 
 		//CREATE A VIDEO IN WORLD
-		function createVideo(locationIndex, videoName, dataSource="csv") {
+		function createVideo(locationIndex, videoName) {
 		    //Create HTML video element to draw texture from
 		    var video_element = document.createElement("video");
 		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
 		    video_element.id = LOCATION[locationIndex].Name+"_"+videoName;
 		    video_element.autoplay = false;
-		    video_element.loop = true;
+		    video_element.loop = false;
 		    video_element.volume = 0;
 		    video_element.muted = true;
 		    video_element.width = window.innerWidth;
@@ -503,7 +535,7 @@
 
 					    //Grab positioning data and save to array
 					    var video_position_data = [];
-					    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&" + dataSource + "=" + videoName; 
+					    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&video=" + videoName; 
 					    $.getJSON(video_position_data_path, function(data) {
 					        $.each(data, function(key, val) {
 					            video_position_data.push(val); //Add to array
@@ -541,27 +573,40 @@
 			var controls = viewer.getControls(viewer.scene.view.navigationMode);
 
 		    $("#"+VIDEO[video_index].ElementID).on("timeupdate", function(event){
+		    	//Update UI
+		    	var currentSeconds = Math.floor(this.currentTime - Math.floor(this.currentTime / 60) * 60);
+		    	var durationSeconds = Math.floor(this.duration - Math.floor(this.duration / 60) * 60);
+		    	if (currentSeconds.toString().length == 1) { currentSeconds = "0" + currentSeconds; }
+		    	if (durationSeconds.toString().length == 1) { durationSeconds = "0" + durationSeconds; }
+		    	$(".ARTSTATION_CurrentVideoTime").text(Math.floor(this.currentTime / 60) + ":" + currentSeconds);
+		    	$(".ARTSTATION_FullVideoTime").text(Math.floor(this.duration / 60) + ":" + durationSeconds);
+		    	$(".ARTSTATION_VideoProgressBar").width((this.currentTime/this.duration*100)+"%");
+
 		    	//Reset counters on video loop
 		        if (Math.floor(this.currentTime) == 0) {
 		        	run_count = 0;
 				    last_time_run = 0;
 				    current_time_run = 0;
 		        }
+
 		        //Update position if new data is available
 		        var should_update = false;
 		        var update_step_up = 0;
+		        var time_adjustment = 0;
+		        if (VIDEO[video_index].ImportedTrackData[run_count][11] == "CSV") {
+		        	time_adjustment = 500; //Time adjustment for Litchi data delay
+		        }
 		        for (var i=0; i<20; i++) {
-		        	if (Math.floor(this.currentTime*1000) > VIDEO[video_index].ImportedTrackData[run_count+i][4]) {
+		        	if (Math.floor(this.currentTime*1000 + time_adjustment) > VIDEO[video_index].ImportedTrackData[run_count+i][4] - VIDEO[video_index].ImportedTrackData[0][4]) {
 		        		should_update = true;
 		        		update_step_up = i;
 		        	}
 		        	else
 		        	{
-		        		//console.log("Total corrections to time: " + update_step_up + " rows");
 		        		break;
 		        	}
 		        }
-		        if (should_update) {
+		        if (should_update && WORLD_STATE == IS_TRACKING_VIDEO) {
 		        	run_count += update_step_up;
 		        	current_time_run = this.currentTime*1000;
 
@@ -607,6 +652,13 @@
 	            	run_count++;
 	        		last_time_run = this.currentTime*1000;
                 }
+		    });
+		    $("#"+VIDEO[video_index].ElementID).on('ended',function(){
+		    	//Video has ended, get us out of it
+				if (VIDEO[video_index].LockCamera && camera_is_locked) {
+					controls.isTransitioning = false;
+					exitCurrentVideo();
+				}
 		    });
 		}
 
@@ -654,7 +706,7 @@
 			}
 			
 			//Move to video if marker clicked on
-			if (WORLD_STATE == IN_ENVIRONMENT || WORLD_STATE == IS_TRACKING_VIDEO) {
+			if (WORLD_STATE == IN_ENVIRONMENT) {
 				//Get mouse/touch position
 				mouse.x = ( position[0] / window.innerWidth ) * 2 - 1;
 				mouse.y = - ( position[1] / window.innerHeight ) * 2 + 1;
@@ -702,14 +754,7 @@
 				DOLLY_COUNTER = [0,0]; //Reset zoom limits
 
 				//Fade out all video markers
-				for (var i = 0; i < VIDEO.length; i++) {
-					var video_id = i;
-					var MARKER_TWEEN = new TWEEN.Tween(VIDEO[video_id].VideoMarker.material).to({opacity: 0}, 500);
-					MARKER_TWEEN.onComplete(function(){
-						VIDEO[video_id].VideoMarker.visible = false;
-					});
-					MARKER_TWEEN.start();
-				}
+				ToggleMarkerVisibility(false, true);
 
 				//Fade annotations back in and configure controls for world view
 				$(".annotation").fadeIn(600, "swing", function() { 
@@ -734,7 +779,9 @@
 			}
 			else 
 			{
-				viewer.setBackground("null");
+				if (USE_CESIUM) {
+					viewer.setBackground("null");
+				}
 			}
 
 			//Change UI depending on state
@@ -784,7 +831,7 @@
 	                    VIDEO[video_id].ImportedTrackData[0][1], 
 	                    VIDEO[video_id].ImportedTrackData[0][3]);
 	                var coords = ConvertToUTM(new_position.x, new_position.y);
-	                var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + 25 + LOCATION[VIDEO[video_id].LocationDataIndex].Z_Offset);
+	                var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + LOCATION[VIDEO[video_id].LocationDataIndex].Z_Offset);
 
 	        		VIDEO[video_id].VideoMesh.position.x = VIDEO_NEW_POSITION.x;
 	        		VIDEO[video_id].VideoMesh.position.y = VIDEO_NEW_POSITION.y;
@@ -793,16 +840,14 @@
 
 	    			//Play and make visible
 		    		video_player.play(); 
+					ToggleMarkerVisibility(false, false);
 				    VIDEO[video_id].VideoMesh.visible = true;
-			    	VIDEO[video_id].VideoMarker.visible = false;
 				});
     		}
     		else
     		{
     			//Continuing video from pause
 	    		video_player.play(); 
-			    VIDEO[video_id].VideoMesh.visible = true;
-			    VIDEO[video_id].VideoMarker.visible = false;
     		}
 		}
 
@@ -812,7 +857,7 @@
 			video_player.pause();
 			video_player.currentTime = 0;
 		    VIDEO[video_id].VideoMesh.visible = false;
-		    VIDEO[video_id].VideoMarker.visible = true;
+			ToggleMarkerVisibility(true, false);
 		}
 
 		//PAUSE VIDEO
@@ -823,7 +868,6 @@
 
 		//PLAY CURRENT VIDEO
 		function playCurrentVideo() {
-			FOCUSSED_VIDEO_STATE = REQUESTED_PLAY;
 			for (var i = 0; i < VIDEO.length; i++) {
 				if (VIDEO[i].LockCamera == true) {
 					playVideo(i, false);
@@ -833,7 +877,6 @@
 
 		//PAUSE CURRENT VIDEO
 		function pauseCurrentVideo() {
-			FOCUSSED_VIDEO_STATE = REQUESTED_PAUSE;
 			for (var i = 0; i < VIDEO.length; i++) {
 				if (VIDEO[i].LockCamera == true) {
 					pauseVideo(i);
@@ -845,16 +888,17 @@
 		function exitCurrentVideo() {
 			for (var i = 0; i < VIDEO.length; i++) {
 				if (VIDEO[i].LockCamera == true) {
-					playVideo(i, false);
 					var current_video = i;
 					TransitionHide(function() {
+						playVideo(current_video, false);
 						var controls = viewer.getControls(viewer.scene.view.navigationMode);
 						setState(IN_ENVIRONMENT);
-						controls.isTransitioning = true;
+						controls.isTransitioning = false;
 						VIDEO[current_video].LockCamera = false;
 						TRACKING_CAMERA_OBJECT = null;
 						TRACKING_CAMERA_IS_ENABLED = false;
 						$(".annotation").hide();
+						stopVideo(current_video);
 					});
 				}
 			}
@@ -894,6 +938,23 @@
 		function StopDollyZoom() {
 			clearInterval(DOLLY_ZOOM_IN);
 			clearInterval(DOLLY_ZOOM_OUT);
+		}
+
+		//TOGGLE VISIBILITY OF ALL VIDEO MARKERS
+		function ToggleMarkerVisibility(shouldShow, shouldFade, customTime=500) {
+			var newOpacity = 0;
+			if (shouldShow) { newOpacity = 1; }
+			var fadeTime = 0;
+			if (shouldFade) { fadeTime = customTime; }
+
+			for (var i = 0; i < VIDEO.length; i++) {
+				var video_id = i;
+				var MARKER_TWEEN = new TWEEN.Tween(VIDEO[video_id].VideoMarker.material).to({opacity: newOpacity}, fadeTime);
+				MARKER_TWEEN.onComplete(function(){
+					VIDEO[video_id].VideoMarker.visible = shouldShow;
+				});
+				MARKER_TWEEN.start();
+			}
 		}
 
 		//BLACK FADE TRANSITION
