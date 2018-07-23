@@ -314,20 +314,6 @@
 		{
 			viewer.scene.getActiveCamera().far = 5000*1000*1000;
 			viewer.setBackground("skybox");
-
-			var map_plane = new THREE.PlaneGeometry(50000, 50000, 1, 1);
-			var map_texture = new THREE.TextureLoader().load("http://assets.artstation.mattfiler.co.uk/IMAGES/replace_me.png");
-			map_texture.crossOrigin = 'anonymous';
-			map_texture.wrapS = THREE.RepeatWrapping;
-			map_texture.wrapT = THREE.RepeatWrapping;
-			map_texture.repeat.set(20, 20);
-			var map_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: map_texture});
-			var map_plane_mesh = new THREE.Mesh(map_plane, map_material);
-			map_plane_mesh.name="ARTSTATION_FakeMap";
-			map_plane_mesh.position.set(510000, 5700000, 48);
-			map_plane_mesh.material.side = THREE.DoubleSide;
-			map_plane_mesh.visible = false; //FOR TESTING
-			viewer.scene.scene.add(map_plane_mesh);
 		}
 
 		//SET INITIAL STATE
@@ -498,7 +484,12 @@
 		    video_element.crossOrigin = 'anonymous'; //Cross-origin must be enabled to use subdomain
 		    document.body.appendChild(video_element);
 
-		    //Create the video plane mesh with HTML element texture
+		    //Create Video/Camera parent object
+			var video_parent = new THREE.Group();
+			video_parent.name = "ARTSTATION_VideoTrackGroup";
+			viewer.scene.scene.add(video_parent);
+
+		    //Create the video plane mesh with HTML element texture, child of main parent
 		    var video_plane = new THREE.PlaneGeometry(20, 12, 1, 1);
 		    var video_elem = document.getElementById(LOCATION[locationIndex].Name+"_"+videoName);
 		    var video_texture = new THREE.VideoTexture(video_elem);
@@ -515,9 +506,9 @@
 		    video_plane_mesh.rotation.y = Math.PI / 2;
 		    video_plane_mesh.rotation.z = Math.PI / 2;
 		    video_plane_mesh.visible = false; //Start off invisible, as we'll only see "markers" in the environment
-		    viewer.scene.scene.add(video_plane_mesh);
+		    video_parent.add(video_plane_mesh);
 
-		    //Create tracking camera entity
+		    //Create tracking camera entity, child of video plane
 		    var tracking_camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 1, 1000); //Configs need updating to match potree
 		    tracking_camera.position.x = 0;
 		    tracking_camera.position.y = 0;
@@ -552,7 +543,8 @@
 					        ImportedTrackData: video_position_data,
 					        LockCamera: false,
 					        VideoMarker: node,
-					        VideoCamera: tracking_camera
+					        VideoCamera: tracking_camera,
+					        VideoParent: video_parent //should really start using this and depreciate VideoMesh.
 					    };
 					    //Add to global video array
 					    var video_id = VIDEO.push(video_data);
@@ -618,20 +610,22 @@
                     	coords[0], //X (lat)
                     	coords[1], //Y (lon)
                     	parseFloat(VIDEO[video_index].ImportedTrackData[run_count][3]) + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset); //Z (altitude + offset)
-                    //Save new rotation to tween to
-                    var VIDEO_NEW_ROTATION = new THREE.Euler(
-                    	VIDEO[video_index].ImportedTrackData[run_count][8] * Math.PI / 180, 
-                    	VIDEO[video_index].ImportedTrackData[run_count][10] * Math.PI / 180, 
-                    	VIDEO[video_index].ImportedTrackData[run_count][9] * Math.PI / 180, 
+                    //Save new rotations to tween to
+                    var GIMBAL_ROTATION = new THREE.Euler(
+                    	VIDEO[video_index].ImportedTrackData[run_count][8] * Math.PI / 180, //Pitch
+                    	VIDEO[video_index].ImportedTrackData[run_count][10] * Math.PI / 180, //Yaw
+                    	VIDEO[video_index].ImportedTrackData[run_count][9] * Math.PI / 180, //Roll
                     	'XYZ');
                     //Compute time to tween
                     var TWEEN_TIME = current_time_run - last_time_run;
 
                     //Perform tweens
-                	var VIDEO_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_index].VideoMesh.position).to(VIDEO_NEW_POSITION, TWEEN_TIME);
-                	var VIDEO_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_index].VideoMesh.rotation).to({x: VIDEO_NEW_ROTATION.x, y: VIDEO_NEW_ROTATION.y, z: VIDEO_NEW_ROTATION.z}, TWEEN_TIME);
+                	var VIDEO_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_index].VideoParent.position).to(VIDEO_NEW_POSITION, TWEEN_TIME);
+                	var VIDEO_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_index].VideoMesh.rotation).to({x: GIMBAL_ROTATION.x, y: 0, z: 0}, TWEEN_TIME);
+                	var PARENT_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_index].VideoParent.rotation).to({x: 0, y: 0, z: GIMBAL_ROTATION.y}, TWEEN_TIME);
                 	VIDEO_TWEEN_POSITION.onStart(() => {
                 		VIDEO_TWEEN_ROTATION.start();
+                		PARENT_TWEEN_ROTATION.start();
 						
 						$(".annotation").hide();
                 		controls.isTransitioning = true;
@@ -834,9 +828,9 @@
 	                var coords = ConvertToUTM(new_position.x, new_position.y);
 	                var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + LOCATION[VIDEO[video_id].LocationDataIndex].Z_Offset);
 
-	        		VIDEO[video_id].VideoMesh.position.x = VIDEO_NEW_POSITION.x;
-	        		VIDEO[video_id].VideoMesh.position.y = VIDEO_NEW_POSITION.y;
-	        		VIDEO[video_id].VideoMesh.position.z = VIDEO_NEW_POSITION.z;
+	        		VIDEO[video_id].VideoParent.position.x = VIDEO_NEW_POSITION.x;
+	        		VIDEO[video_id].VideoParent.position.y = VIDEO_NEW_POSITION.y;
+	        		VIDEO[video_id].VideoParent.position.z = VIDEO_NEW_POSITION.z;
 	    			video_player.currentTime = 0;
 
 	    			//Play and make visible
@@ -972,6 +966,13 @@
 
 
 
+
+		/*
+			NEW MAP LOADER
+		*/
+
+
+
 		//function long2tile(lon,zoom=8) { return (Math.floor((lon+180)/360*Math.pow(2,zoom))); }
  		//function lat2tile(lat,zoom=8)  { return (Math.floor((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom))); }
 
@@ -980,6 +981,7 @@
  		//console.log(lat2tile(51.3977,8));
 
 
+		var map_parent = new THREE.Group();
 
 		loadAllMapTiles(501350,5696950);
 
@@ -995,6 +997,8 @@
 				rowCount=0;
 				colCount++;
 			}
+			map_parent.name = "ARTSTATION_Map";
+			viewer.scene.scene.add(map_parent);
 		}
 
 		//LOAD SINGLE TILE AND POSITION MESH
@@ -1002,8 +1006,8 @@
 			console.log("loading");
 			var map_plane = new THREE.PlaneGeometry(tileSize, tileSize, 1, 1);
 			//The map texture is loaded via the Ordinance Survey API, which has a limited number of calls on the free license. Where possible, drop back to the local copy.
-			var map_texture = new THREE.TextureLoader().load("https://api2.ordnancesurvey.co.uk/mapping_api/v1/service/wmts?key=sAidnzIuOB4KtYQkkv3XHEITqfUUDzM6&layer=Road%2027700&style&tilematrixset=EPSG%3A27700&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fpng&TileMatrix=EPSG%3A27700%3A8&TileCol="+colNum+"&TileRow="+rowNum);
-			//var map_texture = new THREE.TextureLoader().load("http://assets.artstation.mattfiler.co.uk/IMAGES/MAP/"+colNum+" "+rowNum+".png");
+			//var map_texture = new THREE.TextureLoader().load("https://api2.ordnancesurvey.co.uk/mapping_api/v1/service/wmts?key=sAidnzIuOB4KtYQkkv3XHEITqfUUDzM6&layer=Road%2027700&style&tilematrixset=EPSG%3A27700&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fpng&TileMatrix=EPSG%3A27700%3A8&TileCol="+colNum+"&TileRow="+rowNum);
+			var map_texture = new THREE.TextureLoader().load("http://assets.artstation.mattfiler.co.uk/IMAGES/MAP/"+colNum+" "+rowNum+".png");
 			map_texture.crossOrigin = 'anonymous';
 			map_texture.wrapS = THREE.RepeatWrapping;
 			map_texture.wrapT = THREE.RepeatWrapping;
@@ -1013,7 +1017,7 @@
 			map_plane_mesh.name="ARTSTATION_MapTile";
 			map_plane_mesh.position.set(xOffset, yOffset, 48);
 			map_plane_mesh.material.side = THREE.DoubleSide;
-			viewer.scene.scene.add(map_plane_mesh);
+			map_parent.add(map_plane_mesh);
 		}
 	</script>
 </body>

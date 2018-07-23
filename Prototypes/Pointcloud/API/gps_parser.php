@@ -44,9 +44,6 @@
 		    		if ($line_data_raw[37] == 0) {
 		    			continue; //Drone isn't recording, so this data isn't relevant to the video
 		    		}
-		    		if ((($previous_line[65] / 10)*-1) > 100 && (($line_data_raw[65] / 10)*-1) < -100) {
-		    			$line_data_raw[65] *= -1; //Correct 180 degree rotation bug (WIP)
-		    		}
 			    	$line_data_important = array(
 			    		$line_data_raw[0], 
 			    		$line_data_raw[1], 
