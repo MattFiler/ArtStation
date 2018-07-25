@@ -73,12 +73,23 @@
 			right: -1px;
 		}
 		@media (max-width: 768px) {
+			.ARTSTATION_ControlBtn {
+				height: 50px;
+				width: 50px;
+			}
+			.DollyZoomOut, .ARTSTATION_PauseBtn {
+				margin-left: 49px;
+			}
 			.ARTSTATION_VideoTimer {
-				width: calc(100% - 220px);
+				margin-left: 98px;
+				width: calc(100% - 96px);
 			}
 			.ARTSTATION_RightBtn {
 				top: -1px !important;
 				bottom: auto !important;
+			}
+			.ARTSTATION_VideoProgressText {
+				bottom: 48px !important;
 			}
 		}
 		.ARTSTATION_VideoProgressText {
@@ -95,9 +106,10 @@
 			text-transform: capitalize;
 		}
 		.annotation {
-			margin-top: -20px;
-    		margin-left: 13px;
+			margin-top: -20px !important;
+    		margin-left: 13px !important;
     		cursor: default !important;
+    		pointer-events: none !important;
 		}
 		.ARTSTATION_FadeCover {
 			position:absolute;
@@ -163,7 +175,7 @@
 	<div class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoTimer OnlyInVideo progress">
 		<div class="ARTSTATION_VideoProgressBar progress-bar progress-bar-striped progress-bar-animated" style="width:0%; height:100%;"></div>
 		<div class="ARTSTATION_VideoProgressText">
-			<b><span class="ARTSTATION_CurrentVideoTime">00:00</span> / <span class="ARTSTATION_FullVideoTime">00:00</span></b>
+			<b><span class="ARTSTATION_CurrentVideoTime">0:00</span> / <span class="ARTSTATION_FullVideoTime">0:00</span></b>
 		</div>
 	</div>
 
@@ -209,7 +221,6 @@
 		$("#ARTSTATION_ControlPanel").modal("show");
 
 		//DEFINE SETTINGS
-		var BLACKSCREEN_TRANSITIONS_ENABLED = true;
 		var HIDE_MAP_WHEN_TRACKING_VIDEO = false;
 		var USE_CESIUM = false;
 
@@ -223,6 +234,14 @@
 		var IN_ENVIRONMENT = 1; //Using double click to move controls
 		var IS_TRACKING_VIDEO = 2; //Using camera locked to video plane
 		var WORLD_STATE = null;
+		var CAN_CLICK_ON_MARKERS = true;
+
+		//DEFINE UI STATES
+		var UI_SHOW_ENVIRONMENT = 0;
+		var UI_HIDE_ENVIRONMENT = 1;
+		var UI_SHOW_VIDEO = 2;
+		var UI_HIDE_VIDEO = 3;
+		var UI_RESET = 4;
 
 		//DEFINE POTREE VIEWER
 		window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
@@ -286,10 +305,7 @@
 				selectionIndicator: false,
 				timeline: false,
 				navigationHelpButton: false,
-				imageryProvider: imageryProvider,
-				//terrainProvider: Cesium.createWorldTerrain({
-				//    requestVertexNormals: true
-				//})
+				imageryProvider: imageryProvider
 			});
 
 			//CONFIGURE CESIUM VIEWER
@@ -318,6 +334,7 @@
 
 		//SET INITIAL STATE
 		setState(IN_WORLDVIEW, false);
+		StateChangeUI(UI_RESET);
 
 		//ENABLE DEMO PANEL
 		/*
@@ -335,7 +352,7 @@
 			"field", 
 			50, 
 			function(location) { 
-				createVideo(location, "DJI_0003"); 
+				createVideo(location, "DJI_0003", 20); 
 				createVideo(location, "DJI_0005"); 
 			}
 		);
@@ -369,6 +386,7 @@
 					let pRight  = new THREE.Vector3(600, 0, 0).applyMatrix4(camera.matrixWorld);
 					let pUp		 = new THREE.Vector3(0, 600, 0).applyMatrix4(camera.matrixWorld);
 					let pTarget = viewer.scene.view.getPivot();
+					//console.log(pTarget);
 
 					let toCes = (pos) => {
 						let xy = [pos.x, pos.y];
@@ -388,6 +406,14 @@
 
 					cDir = Cesium.Cartesian3.normalize(cDir, new Cesium.Cartesian3());
 					cUp = Cesium.Cartesian3.normalize(cUp, new Cesium.Cartesian3());
+
+					//Attempt at a cesium fix, WIP
+					var newDir = new THREE.Vector3();
+					viewer.scene.getActiveCamera().getWorldDirection(newDir);
+					cDir.x = newDir.x;
+					cDir.y = newDir.y;
+					cDir.z = newDir.z;
+					//console.log(cDir);
 
 					cesiumViewer.camera.setView({
 						destination : cPos,
@@ -410,6 +436,10 @@
 				}
 				
 			}
+
+			//cesiumViewer.camera.position = viewer.scene.getActiveCamera().position;
+			//cesiumViewer.camera.rotation = viewer.scene.getActiveCamera().rotation;
+			//cesiumViewer.camera.up = viewer.scene.getActiveCamera().up;
 
 			if (USE_CESIUM) {
 				cesiumViewer.render();
@@ -444,7 +474,7 @@
 					    {
 							let locationAnnotation = new Potree.Annotation({
 								position: pointcloud.position,
-								title: locationName.replace(/_/g, " "),
+								title: locationName.replace(/_/g, " ")
 							});
 							viewer.scene.annotations.add(locationAnnotation);
 						}
@@ -471,7 +501,7 @@
 		}
 
 		//CREATE A VIDEO IN WORLD
-		function createVideo(locationIndex, videoName) {
+		function createVideo(locationIndex, videoName, zOffset=0) {
 		    //Create HTML video element to draw texture from
 		    var video_element = document.createElement("video");
 		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
@@ -496,7 +526,7 @@
 		    video_texture.minFilter = THREE.LinearFilter;
 		    video_texture.magFilter = THREE.LinearFilter;
 		    video_texture.format = THREE.RGBFormat;
-		    var video_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: video_texture, transparent: true, opacity: 1}); //opacity needs to be 0 here if fading is re-enabled
+		    var video_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: video_texture, transparent: true, opacity: 0}); //opacity needs to be 0 here if fading is re-enabled
 		    var video_plane_mesh = new THREE.Mesh(video_plane, video_material);
 		    video_plane_mesh.material.side = THREE.DoubleSide;
 		    video_plane_mesh.name = "ARTSTATION_VideoPlane"; 
@@ -509,11 +539,21 @@
 		    video_parent.add(video_plane_mesh);
 
 		    //Create tracking camera entity, child of video plane
-		    var tracking_camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 1, 1000); //Configs need updating to match potree
+		    var tracking_camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000); 
 		    tracking_camera.position.x = 0;
 		    tracking_camera.position.y = 0;
-		    tracking_camera.position.z = 60; //Tracking offset to keep mesh in view - use 40ish, or more for testing
+		    tracking_camera.position.z = 30; //This will need changing if the potree fov is ever modified
+		    tracking_camera.name = "ARTSTATION_TrackingCamera";
 		    video_plane_mesh.add(tracking_camera);
+
+		    //Create camera transition entity to replace black screen
+		    var transition_camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000);
+		    tracking_camera.name = "ARTSTATION_TransitionCamera";
+		    viewer.scene.scene.add(transition_camera);
+
+		    //Setup cameras fov to potree default
+			transition_camera.fov = viewer.scene.getActiveCamera().fov;
+			tracking_camera.fov = viewer.scene.getActiveCamera().fov;
 
 		    var GLTF_Loader = new THREE.GLTFLoader();
 		    GLTF_Loader.setCrossOrigin("anonymous"); //Using subdomain, cross-origin
@@ -544,7 +584,9 @@
 					        LockCamera: false,
 					        VideoMarker: node,
 					        VideoCamera: tracking_camera,
-					        VideoParent: video_parent //should really start using this and depreciate VideoMesh.
+					        VideoParent: video_parent, //should really start using this and depreciate VideoMesh.
+					        Z_Offset: zOffset,
+					        TransitionCamera: transition_camera
 					    };
 					    //Add to global video array
 					    var video_id = VIDEO.push(video_data);
@@ -590,14 +632,20 @@
 		        	time_adjustment = 500; //Time adjustment for Litchi data delay
 		        }
 		        for (var i=0; i<20; i++) {
-		        	if (Math.floor(this.currentTime*1000 + time_adjustment) > VIDEO[video_index].ImportedTrackData[run_count+i][4] - VIDEO[video_index].ImportedTrackData[0][4]) {
-		        		should_update = true;
-		        		update_step_up = i;
-		        	}
-		        	else
-		        	{
-		        		break;
-		        	}
+		        	try {
+			        	if (Math.floor(this.currentTime*1000 + time_adjustment) > VIDEO[video_index].ImportedTrackData[run_count+i][4] - VIDEO[video_index].ImportedTrackData[0][4]) {
+			        		should_update = true;
+			        		update_step_up = i;
+			        	}
+			        	else
+			        	{
+			        		break;
+			        	}
+			        }
+			        catch {
+			        	//Video has likely ended.
+			        	should_update = false;
+			        }
 		        }
 		        if (should_update && WORLD_STATE == IS_TRACKING_VIDEO) {
 		        	run_count += update_step_up;
@@ -609,7 +657,7 @@
                     var VIDEO_NEW_POSITION = new THREE.Vector3(
                     	coords[0], //X (lat)
                     	coords[1], //Y (lon)
-                    	parseFloat(VIDEO[video_index].ImportedTrackData[run_count][3]) + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset); //Z (altitude + offset)
+                    	parseFloat(VIDEO[video_index].ImportedTrackData[run_count][3]) + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset - VIDEO[video_index].Z_Offset); //Z (altitude + offset)
                     //Save new rotations to tween to
                     var GIMBAL_ROTATION = new THREE.Euler(
                     	VIDEO[video_index].ImportedTrackData[run_count][8] * Math.PI / 180, //Pitch
@@ -618,6 +666,9 @@
                     	'XYZ');
                     //Compute time to tween
                     var TWEEN_TIME = current_time_run - last_time_run;
+                    if (VIDEO[video_index].VideoParent.rotation.z > 3 && GIMBAL_ROTATION.y < -3) {
+                    	TWEEN_TIME = 0;
+                    }
 
                     //Perform tweens
                 	var VIDEO_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_index].VideoParent.position).to(VIDEO_NEW_POSITION, TWEEN_TIME);
@@ -684,7 +735,7 @@
 						for (var i = 0; i < VIDEO.length; i++) {
 							if (LOCATION[VIDEO[i].LocationDataIndex].UUID == controls.clickedEnvironmentUUID) {
 								var marker_coords = ConvertToUTM(VIDEO[i].ImportedTrackData[0][0], VIDEO[i].ImportedTrackData[0][1]);
-		                        var marker_position = new THREE.Vector3(marker_coords[0], marker_coords[1], parseFloat(VIDEO[i].ImportedTrackData[0][3]) + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset);
+		                        var marker_position = new THREE.Vector3(marker_coords[0], marker_coords[1], parseFloat(VIDEO[i].ImportedTrackData[0][3]) + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset - VIDEO[i].Z_Offset);
 		                        VIDEO[i].VideoMarker.position.x = marker_position.x;
 		                        VIDEO[i].VideoMarker.position.y = marker_position.y;
 		                        VIDEO[i].VideoMarker.position.z = marker_position.z;
@@ -701,7 +752,7 @@
 			}
 			
 			//Move to video if marker clicked on
-			if (WORLD_STATE == IN_ENVIRONMENT) {
+			if (WORLD_STATE == IN_ENVIRONMENT && CAN_CLICK_ON_MARKERS) {
 				//Get mouse/touch position
 				mouse.x = ( position[0] / window.innerWidth ) * 2 - 1;
 				mouse.y = - ( position[1] / window.innerHeight ) * 2 + 1;
@@ -779,32 +830,32 @@
 				}
 			}
 
-			//Change UI depending on state
+			//Basic UI updates
 			if (WORLD_STATE == IN_ENVIRONMENT) {
+				StateChangeUI(UI_SHOW_ENVIRONMENT);
+			} else if (WORLD_STATE == IN_WORLDVIEW) {
+				StateChangeUI(UI_HIDE_ENVIRONMENT);
+			}
+
+			//Marker click sanity bug-fix
+			if (WORLD_STATE != IS_TRACKING_VIDEO) {
+				CAN_CLICK_ON_MARKERS = true;
+			}
+		}
+
+		//UI CONTROL
+		function StateChangeUI(state) {
+			if (state == UI_RESET) {
+				$(".OnlyInEnvironment").hide();
+				$(".OnlyInVideo").hide();
+			} else if (state == UI_SHOW_ENVIRONMENT) {
 				$(".OnlyInEnvironment").fadeIn(500);
-			}
-			else
-			{
-				if (shouldFadeOut) {
-					$(".OnlyInEnvironment").fadeOut(500);
-				}
-				else
-				{
-					$(".OnlyInEnvironment").hide();
-				}
-			}
-			if (WORLD_STATE == IS_TRACKING_VIDEO) {
+			} else if (state == UI_HIDE_ENVIRONMENT) {
+				$(".OnlyInEnvironment").fadeOut(500);
+			} else if (state == UI_SHOW_VIDEO) {
 				$(".OnlyInVideo").fadeIn(500);
-			}
-			else
-			{
-				if (shouldFadeOut) {
-					$(".OnlyInVideo").fadeOut(500);
-				}
-				else
-				{
-					$(".OnlyInVideo").hide();
-				}
+			} else if (state == UI_HIDE_VIDEO) {
+				$(".OnlyInVideo").fadeOut(500);
 			}
 		}
 
@@ -813,30 +864,16 @@
 			var video_player = document.getElementById(VIDEO[video_id].ElementID); 
     		if (reset) {
     			//Playing video from the beginning
-				TransitionHide(function() {
-					//Configure camera
+				EnterVideoTrackMode(video_id, true, function() {
+					//Configure tracking camera
 					VIDEO[video_id].LockCamera = true;
 					TRACKING_CAMERA_OBJECT = VIDEO[video_id].VideoCamera;
 					TRACKING_CAMERA_IS_ENABLED = true;
     				setState(IS_TRACKING_VIDEO);
 
-    				//Position video at start & reset time
-	    			var new_position = new THREE.Vector3(
-	                    VIDEO[video_id].ImportedTrackData[0][0], 
-	                    VIDEO[video_id].ImportedTrackData[0][1], 
-	                    VIDEO[video_id].ImportedTrackData[0][3]);
-	                var coords = ConvertToUTM(new_position.x, new_position.y);
-	                var VIDEO_NEW_POSITION = new THREE.Vector3(coords[0], coords[1], parseFloat(new_position.z) + LOCATION[VIDEO[video_id].LocationDataIndex].Z_Offset);
-
-	        		VIDEO[video_id].VideoParent.position.x = VIDEO_NEW_POSITION.x;
-	        		VIDEO[video_id].VideoParent.position.y = VIDEO_NEW_POSITION.y;
-	        		VIDEO[video_id].VideoParent.position.z = VIDEO_NEW_POSITION.z;
+    				//Reset video time and play
 	    			video_player.currentTime = 0;
-
-	    			//Play and make visible
 		    		video_player.play(); 
-					ToggleMarkerVisibility(false, false);
-				    VIDEO[video_id].VideoMesh.visible = true;
 				});
     		}
     		else
@@ -884,7 +921,7 @@
 			for (var i = 0; i < VIDEO.length; i++) {
 				if (VIDEO[i].LockCamera == true) {
 					var current_video = i;
-					TransitionHide(function() {
+					EnterVideoTrackMode(i, false, function() {
 						playVideo(current_video, false);
 						var controls = viewer.getControls(viewer.scene.view.navigationMode);
 						setState(IN_ENVIRONMENT);
@@ -942,26 +979,120 @@
 			var fadeTime = 0;
 			if (shouldFade) { fadeTime = customTime; }
 
+			if (!shouldShow) {
+				CAN_CLICK_ON_MARKERS = shouldShow;
+			}
+
 			for (var i = 0; i < VIDEO.length; i++) {
 				var video_id = i;
 				var MARKER_TWEEN = new TWEEN.Tween(VIDEO[video_id].VideoMarker.material).to({opacity: newOpacity}, fadeTime);
 				MARKER_TWEEN.onComplete(function(){
 					VIDEO[video_id].VideoMarker.visible = shouldShow;
+					CAN_CLICK_ON_MARKERS = shouldShow;
 				});
 				MARKER_TWEEN.start();
 			}
 		}
 
-		//BLACK FADE TRANSITION
-		function TransitionHide(callback=function(){}, speedIn=500, speedOut=1000, speedDelay=500) {
-			if (BLACKSCREEN_TRANSITIONS_ENABLED) {
-				$(".ARTSTATION_FadeCover").fadeIn(speedIn, callback).delay(speedDelay).fadeOut(speedOut);
+		//ENTER VIDEO TRACKING MODE
+		function EnterVideoTrackMode(video_id, isEnteringVideo, callback=function(){}, speedIn=500, speedOut=1000, speedDelay=500) {
+			var CAMERA_POSITION = new THREE.Vector3();
+			var CAMERA_ROTATION = new THREE.Euler();
+			if (isEnteringVideo) {
+				//Compute position of video 
+	            var coords = ConvertToUTM(VIDEO[video_id].ImportedTrackData[0][0], VIDEO[video_id].ImportedTrackData[0][1]);
+	            var VIDEO_NEW_POSITION = new THREE.Vector3(
+	            	coords[0], 
+	            	coords[1], 
+	            	parseFloat(VIDEO[video_id].ImportedTrackData[0][3]) + LOCATION[VIDEO[video_id].LocationDataIndex].Z_Offset - VIDEO[video_id].Z_Offset);
+
+	            //Position video group for initial data
+	    		VIDEO[video_id].VideoParent.position.x = VIDEO_NEW_POSITION.x;
+	    		VIDEO[video_id].VideoParent.position.y = VIDEO_NEW_POSITION.y;
+	    		VIDEO[video_id].VideoParent.position.z = VIDEO_NEW_POSITION.z;
+
+	    		//Rotate video group/mesh for initial data
+	    		VIDEO[video_id].VideoMesh.rotation.x = VIDEO[video_id].ImportedTrackData[0][8] * Math.PI / 180;
+	    		VIDEO[video_id].VideoMesh.rotation.y = 0;
+	    		VIDEO[video_id].VideoMesh.rotation.z = 0;
+	    		VIDEO[video_id].VideoParent.rotation.x = 0;
+	    		VIDEO[video_id].VideoParent.rotation.y = 0;
+	    		VIDEO[video_id].VideoParent.rotation.z = VIDEO[video_id].ImportedTrackData[0][10] * Math.PI / 180;
+
+	    		//Hide markers and fade video plane in
+	    		var VIDEO_PLANE_OPACITY = new TWEEN.Tween(VIDEO[video_id].VideoMesh.material).to({opacity: 1}, speedIn+speedOut+speedDelay);
+	    		VIDEO_PLANE_OPACITY.onStart(function(){
+					VIDEO[video_id].VideoMesh.visible = true;
+				});
+				VIDEO_PLANE_OPACITY.start();
+	    		ToggleMarkerVisibility(false, true, speedIn+speedDelay);
+
+	    		//Freeze potree controls
+	    		var controls = viewer.getControls(viewer.scene.view.navigationMode);
+            	controls.isTransitioning = true;
+
+				//Update matrices for world position
+				VIDEO[video_id].VideoParent.updateMatrixWorld();
+				VIDEO[video_id].VideoMesh.updateMatrixWorld();
+				VIDEO[video_id].VideoCamera.updateMatrixWorld();
+
+            	//Set desired position/rotation
+				VIDEO[video_id].VideoCamera.getWorldPosition(CAMERA_POSITION);
+				CAMERA_ROTATION.setFromQuaternion(VIDEO[video_id].VideoCamera.getWorldQuaternion());
+
+	        	//Position camera
+			    VIDEO[video_id].TransitionCamera.position.copy(viewer.scene.getActiveCamera().position);
+				VIDEO[video_id].TransitionCamera.rotation.copy(viewer.scene.getActiveCamera().rotation);
 			}
 			else
 			{
-				callback();
+				//Show markers and fade video plane out
+	    		var VIDEO_PLANE_OPACITY = new TWEEN.Tween(VIDEO[video_id].VideoMesh.material).to({opacity: 0}, speedIn+speedOut+speedDelay);
+	    		VIDEO_PLANE_OPACITY.onComplete(function(){
+					VIDEO[video_id].VideoMesh.visible = false;
+				});
+				VIDEO_PLANE_OPACITY.start();
+	    		ToggleMarkerVisibility(true, true, speedIn+speedDelay);
+
+            	//Set desired position/rotation
+            	CAMERA_POSITION.copy(viewer.scene.cameraP.position); //viewer.scene.cameraP is the getActiveCamera for potree
+				CAMERA_ROTATION.copy(viewer.scene.cameraP.rotation);
+
+				//Update matrices for world position
+				VIDEO[video_id].VideoParent.updateMatrixWorld();
+				VIDEO[video_id].VideoMesh.updateMatrixWorld();
+				VIDEO[video_id].VideoCamera.updateMatrixWorld();
+
+	        	//Position camera
+			    VIDEO[video_id].VideoCamera.getWorldPosition(VIDEO[video_id].TransitionCamera.position);
+			    VIDEO[video_id].TransitionCamera.rotation.setFromQuaternion(VIDEO[video_id].VideoCamera.getWorldQuaternion());
 			}
+
+			//Set transition camera as active
+			TRACKING_CAMERA_OBJECT = VIDEO[video_id].TransitionCamera;
+			TRACKING_CAMERA_IS_ENABLED = true;
+
+			//Move camera to desired position
+			var TRANSITION_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_id].TransitionCamera.position).to({x: CAMERA_POSITION.x, y: CAMERA_POSITION.y, z: CAMERA_POSITION.z}, speedIn+speedOut+speedDelay);
+			var TRANSITION_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_id].TransitionCamera.rotation).to({x: CAMERA_ROTATION.x, y: CAMERA_ROTATION.y, z: CAMERA_ROTATION.z}, speedIn+speedOut+speedDelay);
+			TRANSITION_TWEEN_POSITION.onStart(function(){
+				if (isEnteringVideo) { StateChangeUI(UI_HIDE_ENVIRONMENT); } else { StateChangeUI(UI_HIDE_VIDEO); }
+				TRANSITION_TWEEN_ROTATION.start();
+			});
+			TRANSITION_TWEEN_POSITION.onComplete(function(){
+				if (isEnteringVideo) { StateChangeUI(UI_SHOW_VIDEO); } else { StateChangeUI(UI_SHOW_ENVIRONMENT); }
+				callback();
+			});
+			TRANSITION_TWEEN_POSITION.start();
 		}
+
+		//CHANGE CUSTOM CAMERA ASPECT RATIOS ON WINDOW RESIZE
+		$(window).resize(function() {
+			for (var i=0; i<VIDEO.length; i++) {
+				VIDEO[i].TransitionCamera.aspect = window.innerWidth / window.innerHeight;
+				VIDEO[i].VideoCamera.aspect = window.innerWidth / window.innerHeight;
+			}
+		});
 
 
 
@@ -983,27 +1114,31 @@
 
 		var map_parent = new THREE.Group();
 
-		loadAllMapTiles(501350,5696950);
+		if (!USE_CESIUM) {
+			loadAllMapTiles(501320,5696910, 0.2); //ideally this will be placed with gps per tile, if i can find where the tile gps is stored
+		}
 
 		//LOAD ALL MAP TILES IN REQUESTED AREA AT REQUESTED SIZE
-		function loadAllMapTiles(startPosX=0, startPosY=0, startRow=1346, endRow=1353, startCol=636, endCol=652, tileSize=910) {
+		function loadAllMapTiles(startPosX=0, startPosY=0, rotation=0, startRow=1346, endRow=1353, startCol=636, endCol=652, tileSize=910) {
 			var rowCount = 0;
 			var colCount = 0;
 			for (var row=startRow; row<=endRow; row++) {
 				for (var col=startCol; col<=endCol; col++) {
-					loadTile(col, row, (rowCount * tileSize) + startPosX, startPosY - (colCount * tileSize), tileSize);
+					loadTile(col, row, (rowCount * tileSize), -(colCount * tileSize), tileSize);
 					rowCount++;
 				}
 				rowCount=0;
 				colCount++;
 			}
+			map_parent.rotation.z = (rotation * Math.PI / 180);
+			map_parent.position.x = startPosX;
+			map_parent.position.y = startPosY;
 			map_parent.name = "ARTSTATION_Map";
 			viewer.scene.scene.add(map_parent);
 		}
 
 		//LOAD SINGLE TILE AND POSITION MESH
 		function loadTile(colNum=0, rowNum=0, xOffset=0, yOffset=0, tileSize=256) {
-			console.log("loading");
 			var map_plane = new THREE.PlaneGeometry(tileSize, tileSize, 1, 1);
 			//The map texture is loaded via the Ordinance Survey API, which has a limited number of calls on the free license. Where possible, drop back to the local copy.
 			//var map_texture = new THREE.TextureLoader().load("https://api2.ordnancesurvey.co.uk/mapping_api/v1/service/wmts?key=sAidnzIuOB4KtYQkkv3XHEITqfUUDzM6&layer=Road%2027700&style&tilematrixset=EPSG%3A27700&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fpng&TileMatrix=EPSG%3A27700%3A8&TileCol="+colNum+"&TileRow="+rowNum);

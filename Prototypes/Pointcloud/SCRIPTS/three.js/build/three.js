@@ -8258,7 +8258,7 @@
 
 				if ( target === undefined ) {
 
-					console.warn( 'THREE.Object3D: .getWorldQuaternion() target is now required' );
+					//console.warn( 'THREE.Object3D: .getWorldQuaternion() target is now required' ); - MFILER-250718: Removing this log
 					target = new Quaternion();
 
 				}
