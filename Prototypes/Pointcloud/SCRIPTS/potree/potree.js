@@ -15050,13 +15050,15 @@ void main() {
 			this.isTransitioning = false; //MFILER-050718
 			this.focusPoint = null; //MFILER-060718
 			this.currentDevice = new MobileDetect(window.navigator.userAgent); // MFILER-090718
+			this.rotationYawPrev = 0; //MFILER-260718
+			this.rotationYawCurr = 0; //MFILER-260718
 
 			this.tweens = [];
 
 			let drag = (e) => {
 				//MFILER-090718 START: Disable panning on mobile for now, this needs to be sorted (TODO)
-				if (this.currentDevice.mobile() != null) {
-					return;
+				if (this.currentDevice.mobile() != null && this.worldViewCameraConfig) { //MFILER-260718: Re-enabling, but only when out of world view.
+					return; 
 				}
 				//MFILER-090718 END
 				if (!this.isTransitioning) { //MFILER-050718
@@ -15127,15 +15129,21 @@ void main() {
 			let previousTouch = null;
 			let touchStart = e => {
 				previousTouch = e;
-
-				//MFILER-090718 START: "Tap to location", conflicts with panning currently
-				if (!this.worldViewCameraConfig && !this.isTransitioning) {
-					this.zoomToLocation({x: previousTouch.touches[0].screenX, y: previousTouch.touches[0].screenY}, false, 1500); 
-				}
-				//MFILER-090718 END
+				
+				this.rotationYawPrev = this.scene.view.yaw; //MFILER-260718
 			};
 
 			let touchEnd = e => {
+				this.rotationYawCurr = this.scene.view.yaw; //MFILER-260718
+
+				//MFILER-260718 START
+				if (this.rotationYawPrev - this.rotationYawCurr <= 0.1 || this.rotationYawPrev - this.rotationYawCurr >= -0.1) {
+					if (!this.worldViewCameraConfig && !this.isTransitioning) {
+						this.zoomToLocation({x: previousTouch.touches[0].screenX, y: previousTouch.touches[0].screenY}, false, 1500); 
+					}
+				}
+				//MFILER-260718 END
+
 				previousTouch = e;
 			};
 
@@ -22745,7 +22753,7 @@ ENDSEC
 			try {
 				this.controls.stop();
 			}
-			catch {
+			catch(err) { //MFILER-260718: Fixing IE bug.
 				console.warn("MFILER-290618: Couldn't perform controls.stop();")
 			}
 		};

@@ -14,6 +14,7 @@
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/spectrum/spectrum.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/jstree/themes/mixed/style.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/Cesium/Widgets/CesiumWidget/CesiumWidget.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css">
 
 	<style>
 		video {
@@ -111,15 +112,26 @@
     		cursor: default !important;
     		pointer-events: none !important;
 		}
-		.ARTSTATION_FadeCover {
-			position:absolute;
-			top:0;
-			bottom:0;
-			left:0;
-			right:0;
-			background: black;
-			z-index:999;
-			display:none;
+		noscript {
+			position: absolute;
+			top: 0;
+			left: 0;
+			bottom: 0;
+			right: 0;
+			z-index: 999;
+		}
+		.ARTSTATION_JavaScriptWarning {
+			color: white;
+			display: flex;
+			-ms-flex-align: center;
+			align-items: center;
+			width: 100%;
+			margin-top: calc(100vh / 2);
+			padding: 0 15px;
+		}
+		.ARTSTATION_JavaScriptWarningText {
+			text-align: center; 
+			width: 100%;
 		}
 	</style>
 </head>
@@ -145,10 +157,16 @@
 	<script src="SCRIPTS/Cesium/Cesium.js"></script>
 	<script src="SCRIPTS/taylorc/geoutm.js"></script>
 	<script src="SCRIPTS/mobile-detect/mobile-detect.js"></script>
-	<!--<script src="SCRIPTS/ARTSTATION/main.js"></script>-->
+	<script src="SCRIPTS/ARTSTATION/main.js"></script>
 
-	<!-- ARTSTATION Black Fade Cover -->
-	<div class="ARTSTATION_FadeCover"></div>
+	<!-- ARTSTATION JavaScript Warning -->
+	<noscript>
+		<center>
+			<h1 class="ARTSTATION_JavaScriptWarning">
+				<span class="ARTSTATION_JavaScriptWarningText">Application failed to run - JavaScript must be enabled!</span>
+			</h1>
+		</center>
+	</noscript>
 
 	<!-- ARTSTATION Camera Dolly Buttons -->
 	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
@@ -194,11 +212,7 @@
 				</div>
 				<div class="modal-body">
 					<ul class="ARTSTATION_DeviceControls">
-						<li>Click on an environment to enter it.</li>
-						<li>Double click within an environment to move.</li>
-						<li>Use left mouse down to rotate camera.</li>
-						<li>Zoom in/out with the buttons in the bottom left.</li>
-						<li>Exit an environment with the button in the bottom right.</li>
+
 					</ul>
 				</div>
 				<div class="modal-footer">
@@ -408,11 +422,13 @@
 					cUp = Cesium.Cartesian3.normalize(cUp, new Cesium.Cartesian3());
 
 					//Attempt at a cesium fix, WIP
+					/*
 					var newDir = new THREE.Vector3();
 					viewer.scene.getActiveCamera().getWorldDirection(newDir);
 					cDir.x = newDir.x;
 					cDir.y = newDir.y;
 					cDir.z = newDir.z;
+					*/
 					//console.log(cDir);
 
 					cesiumViewer.camera.setView({
@@ -504,7 +520,8 @@
 		function createVideo(locationIndex, videoName, zOffset=0) {
 		    //Create HTML video element to draw texture from
 		    var video_element = document.createElement("video");
-		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName+".mp4";
+		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName;
+		    if (device.mobile() == null) { video_element.src += ".mp4"; } else { video_element.src += "_mobile.mp4"; } //mobile/desktop video qualities
 		    video_element.id = LOCATION[locationIndex].Name+"_"+videoName;
 		    video_element.autoplay = false;
 		    video_element.loop = false;
@@ -542,7 +559,7 @@
 		    var tracking_camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000); 
 		    tracking_camera.position.x = 0;
 		    tracking_camera.position.y = 0;
-		    tracking_camera.position.z = 30; //This will need changing if the potree fov is ever modified
+		    if (device.mobile() == null) { tracking_camera.position.z = 30; } else { tracking_camera.position.z = 50; } //mobile/desktop video offsets
 		    tracking_camera.name = "ARTSTATION_TrackingCamera";
 		    video_plane_mesh.add(tracking_camera);
 
@@ -642,7 +659,7 @@
 			        		break;
 			        	}
 			        }
-			        catch {
+			        catch(err) {
 			        	//Video has likely ended.
 			        	should_update = false;
 			        }
@@ -666,9 +683,11 @@
                     	'XYZ');
                     //Compute time to tween
                     var TWEEN_TIME = current_time_run - last_time_run;
-                    if (VIDEO[video_index].VideoParent.rotation.z > 3 && GIMBAL_ROTATION.y < -3) {
+                    if (VIDEO[video_index].VideoParent.rotation.z > 2.8 && GIMBAL_ROTATION.y < -2.8) {
                     	TWEEN_TIME = 0;
+                    	console.log("Fixing");
                     }
+                    console.log(GIMBAL_ROTATION.y);
 
                     //Perform tweens
                 	var VIDEO_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_index].VideoParent.position).to(VIDEO_NEW_POSITION, TWEEN_TIME);
