@@ -15058,7 +15058,7 @@ void main() {
 			let drag = (e) => {
 				//MFILER-090718 START: Disable panning on mobile for now, this needs to be sorted (TODO)
 				if (this.currentDevice.mobile() != null && this.worldViewCameraConfig) { //MFILER-260718: Re-enabling, but only when out of world view.
-					return; 
+					return;
 				}
 				//MFILER-090718 END
 				if (!this.isTransitioning) { //MFILER-050718
@@ -15137,7 +15137,7 @@ void main() {
 				this.rotationYawCurr = this.scene.view.yaw; //MFILER-260718
 
 				//MFILER-260718 START
-				if (this.rotationYawPrev - this.rotationYawCurr <= 0.1 || this.rotationYawPrev - this.rotationYawCurr >= -0.1) {
+				if (this.rotationYawPrev - this.rotationYawCurr <= 0.1 && this.rotationYawPrev - this.rotationYawCurr >= -0.1) {
 					if (!this.worldViewCameraConfig && !this.isTransitioning) {
 						this.zoomToLocation({x: previousTouch.touches[0].screenX, y: previousTouch.touches[0].screenY}, false, 1500); 
 					}

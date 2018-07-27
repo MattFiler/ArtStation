@@ -133,6 +133,31 @@
 			text-align: center; 
 			width: 100%;
 		}
+		.ARTSTATION_EnvironmentInfoPopup {
+			position: absolute;
+			top: -1px;
+			left: -1px;
+			max-width: 500px;
+			width: 100%;
+			z-index: 999;
+			background: #e2e2e2;
+			color: black;
+			border: 1px solid black;
+			padding: 20px;
+			display: none;
+		}
+		.ARTSTATION_VideoTitle {
+			position:absolute;
+			left:0;
+			right:0;
+			top: 30px;
+			text-align: center;
+			color: white;
+			text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;  
+			z-index: 999;
+			font-size: 35px;
+			display:none;
+		}
 	</style>
 </head>
 
@@ -168,6 +193,16 @@
 		</center>
 	</noscript>
 
+	<!-- ARTSTATION Environment Info Popup -->
+	<div class="ARTSTATION_EnvironmentInfoPopup">
+		<h1 class="ARTSTATION_EnvInfoTitle"></h1>
+		<p class="ARTSTATION_EnvInfoSubtitle"></p>
+		<ul class="ARTSTATION_EnvInfoList"></ul>
+		<div align="right">
+			<button class="ARTSTATION_CloseEnvInfo btn btn-success">Close</button>
+		</div>
+	</div>
+
 	<!-- ARTSTATION Camera Dolly Buttons -->
 	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-plus"></i>
@@ -180,6 +215,9 @@
 	<button class="ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_HomeBtn OnlyInEnvironment" onclick="ReturnToWorldView();">
 		<i class="fas fa-home"></i>
 	</button>
+
+	<!-- ARTSTATION Video Title -->
+	<div class="ARTSTATION_VideoTitle OnlyInVideo"></div>
 
 	<!-- ARTSTATION Video Controls -->
 	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PlayBtn OnlyInVideo" onclick="playCurrentVideo();">
@@ -237,10 +275,12 @@
 		//DEFINE SETTINGS
 		var HIDE_MAP_WHEN_TRACKING_VIDEO = false;
 		var USE_CESIUM = false;
+		var INFO_POPUP_IS_HIDDEN = false;
 
 		//DEFINE DATA STORES
 		var VIDEO = [];
 		var LOCATION = [];
+		var LOCATION_INFO = [];
 		var DOLLY_COUNTER = [0,0];
 
 		//DEFINE WORLD STATES
@@ -366,8 +406,16 @@
 			"field", 
 			50, 
 			function(location) { 
-				createVideo(location, "DJI_0003", 20); 
-				createVideo(location, "DJI_0005"); 
+				//Videos In Environment
+				createVideo(location, "DJI_0003", "Dead Grass Circle", 20); 
+				createVideo(location, "DJI_0005", "River Tracking Shot"); 
+				createVideo(location, "DJI_0009", "Static Spin Shot", 15); 
+
+				//Environment Info
+				addEnvInfo(location, 
+					"The Field", 
+					"The field is located just off of a model aircraft flight area, a great spot for testing the drone for this application!", 
+					["Located in Somerset.", "Lets you fly model aircraft.", "Other good stuff."]);
 			}
 		);
 
@@ -376,7 +424,14 @@
 			"st_thomas_head", 
 			45, 
 			function(location) { 
-				createVideo(location, "DJI_0023"); 
+				//Videos In Environment
+				createVideo(location, "DJI_0023", "Out Over The River"); 
+
+				//Environment Info
+				addEnvInfo(location, 
+					"St Thomas Head", 
+					"An old MOD base used during the war to develop and test a range of explosives. Before being discontinued it was used for bomb disposal.", 
+					["Located in Somerset.", "Now demolished.", "Out of service."]);
 			}
 		);
 
@@ -517,7 +572,7 @@
 		}
 
 		//CREATE A VIDEO IN WORLD
-		function createVideo(locationIndex, videoName, zOffset=0) {
+		function createVideo(locationIndex, videoName, videoTitle, zOffset=0, xOffset=0, yOffset=0) {
 		    //Create HTML video element to draw texture from
 		    var video_element = document.createElement("video");
 		    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName;
@@ -525,8 +580,8 @@
 		    video_element.id = LOCATION[locationIndex].Name+"_"+videoName;
 		    video_element.autoplay = false;
 		    video_element.loop = false;
-		    video_element.volume = 0;
-		    video_element.muted = true;
+		    video_element.volume = 1; //Only certain videos actually have an audio track, but force full volume for all anyways and let the Browser handle it.
+		    video_element.muted = false;
 		    video_element.width = window.innerWidth;
 		    video_element.crossOrigin = 'anonymous'; //Cross-origin must be enabled to use subdomain
 		    document.body.appendChild(video_element);
@@ -602,8 +657,12 @@
 					        VideoMarker: node,
 					        VideoCamera: tracking_camera,
 					        VideoParent: video_parent, //should really start using this and depreciate VideoMesh.
+					        X_Offset: xOffset,
+					        Y_Offset: yOffset,
 					        Z_Offset: zOffset,
-					        TransitionCamera: transition_camera
+					        TransitionCamera: transition_camera,
+					        VideoTitle: videoTitle,
+					        LocationInfoIndex: null //set when information is added
 					    };
 					    //Add to global video array
 					    var video_id = VIDEO.push(video_data);
@@ -622,6 +681,8 @@
 		    var run_count = 0;
 		    var last_time_run = 0;
 		    var current_time_run = 0;
+		    var was_fixed = false;
+		    var fixed_time = 0;
 			var controls = viewer.getControls(viewer.scene.view.navigationMode);
 
 		    $("#"+VIDEO[video_index].ElementID).on("timeupdate", function(event){
@@ -672,8 +733,8 @@
                     var coords = ConvertToUTM(VIDEO[video_index].ImportedTrackData[run_count][0], VIDEO[video_index].ImportedTrackData[run_count][1]);
                     //Save new position to tween to
                     var VIDEO_NEW_POSITION = new THREE.Vector3(
-                    	coords[0], //X (lat)
-                    	coords[1], //Y (lon)
+                    	coords[0] + VIDEO[video_index].X_Offset, //X (lat)
+                    	coords[1] + VIDEO[video_index].Y_Offset, //Y (lon)
                     	parseFloat(VIDEO[video_index].ImportedTrackData[run_count][3]) + LOCATION[VIDEO[video_index].LocationDataIndex].Z_Offset - VIDEO[video_index].Z_Offset); //Z (altitude + offset)
                     //Save new rotations to tween to
                     var GIMBAL_ROTATION = new THREE.Euler(
@@ -683,11 +744,12 @@
                     	'XYZ');
                     //Compute time to tween
                     var TWEEN_TIME = current_time_run - last_time_run;
-                    if (VIDEO[video_index].VideoParent.rotation.z > 2.8 && GIMBAL_ROTATION.y < -2.8) {
+                    if ((VIDEO[video_index].VideoParent.rotation.z - GIMBAL_ROTATION.y < -3 ||
+                    	VIDEO[video_index].VideoParent.rotation.z - GIMBAL_ROTATION.y > 3) &&
+                    	run_count != update_step_up) {
+                    	GIMBAL_ROTATION.y = VIDEO[video_index].VideoParent.rotation.z * -1;
                     	TWEEN_TIME = 0;
-                    	console.log("Fixing");
                     }
-                    console.log(GIMBAL_ROTATION.y);
 
                     //Perform tweens
                 	var VIDEO_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_index].VideoParent.position).to(VIDEO_NEW_POSITION, TWEEN_TIME);
@@ -746,15 +808,25 @@
 		        mouse.y = position[1];
 				controls.zoomToLocation(mouse, true, 1600, true, function() {
 					if (controls.didClickEnvironment) {
+						//Populate environment info popup
+						for (var i=0; i<LOCATION.length; i++) {
+							if (controls.clickedEnvironmentUUID == LOCATION[i].UUID) {
+								populateEnvInfoPopup(i);
+							}
+						}
+
 						//Configure camera
 			        	controls.worldViewCameraConfig = false;
 						setState(IN_ENVIRONMENT);
+
+						//Move map back up (temp fix)
+						map_parent.position.z = 0;
 
 						//Setup videos
 						for (var i = 0; i < VIDEO.length; i++) {
 							if (LOCATION[VIDEO[i].LocationDataIndex].UUID == controls.clickedEnvironmentUUID) {
 								var marker_coords = ConvertToUTM(VIDEO[i].ImportedTrackData[0][0], VIDEO[i].ImportedTrackData[0][1]);
-		                        var marker_position = new THREE.Vector3(marker_coords[0], marker_coords[1], parseFloat(VIDEO[i].ImportedTrackData[0][3]) + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset - VIDEO[i].Z_Offset);
+		                        var marker_position = new THREE.Vector3(marker_coords[0]+VIDEO[i].X_Offset, marker_coords[1]+VIDEO[i].Y_Offset, parseFloat(VIDEO[i].ImportedTrackData[0][3]) + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset - VIDEO[i].Z_Offset);
 		                        VIDEO[i].VideoMarker.position.x = marker_position.x;
 		                        VIDEO[i].VideoMarker.position.y = marker_position.y;
 		                        VIDEO[i].VideoMarker.position.z = marker_position.z;
@@ -821,6 +893,9 @@
 				//Fade out all video markers
 				ToggleMarkerVisibility(false, true);
 
+				//Move map back down (temp fix)
+				map_parent.position.z = -15;
+
 				//Fade annotations back in and configure controls for world view
 				$(".annotation").fadeIn(600, "swing", function() { 
 					setState(IN_WORLDVIEW); 
@@ -854,6 +929,7 @@
 				StateChangeUI(UI_SHOW_ENVIRONMENT);
 			} else if (WORLD_STATE == IN_WORLDVIEW) {
 				StateChangeUI(UI_HIDE_ENVIRONMENT);
+				INFO_POPUP_IS_HIDDEN = false;
 			}
 
 			//Marker click sanity bug-fix
@@ -867,10 +943,13 @@
 			if (state == UI_RESET) {
 				$(".OnlyInEnvironment").hide();
 				$(".OnlyInVideo").hide();
+				$(".ARTSTATION_EnvironmentInfoPopup").hide();
 			} else if (state == UI_SHOW_ENVIRONMENT) {
 				$(".OnlyInEnvironment").fadeIn(500);
+				if (!INFO_POPUP_IS_HIDDEN) { $(".ARTSTATION_EnvironmentInfoPopup").fadeIn(500); }
 			} else if (state == UI_HIDE_ENVIRONMENT) {
 				$(".OnlyInEnvironment").fadeOut(500);
+				if (!INFO_POPUP_IS_HIDDEN) { $(".ARTSTATION_EnvironmentInfoPopup").fadeOut(500); }
 			} else if (state == UI_SHOW_VIDEO) {
 				$(".OnlyInVideo").fadeIn(500);
 			} else if (state == UI_HIDE_VIDEO) {
@@ -882,6 +961,8 @@
 		function playVideo(video_id, reset=true) {
 			var video_player = document.getElementById(VIDEO[video_id].ElementID); 
     		if (reset) {
+    			//Set title
+    			$(".ARTSTATION_VideoTitle").text(VIDEO[video_id].VideoTitle);
     			//Playing video from the beginning
 				EnterVideoTrackMode(video_id, true, function() {
 					//Configure tracking camera
@@ -1021,8 +1102,8 @@
 				//Compute position of video 
 	            var coords = ConvertToUTM(VIDEO[video_id].ImportedTrackData[0][0], VIDEO[video_id].ImportedTrackData[0][1]);
 	            var VIDEO_NEW_POSITION = new THREE.Vector3(
-	            	coords[0], 
-	            	coords[1], 
+	            	coords[0]+VIDEO[video_id].X_Offset, 
+	            	coords[1]+VIDEO[video_id].Y_Offset, 
 	            	parseFloat(VIDEO[video_id].ImportedTrackData[0][3]) + LOCATION[VIDEO[video_id].LocationDataIndex].Z_Offset - VIDEO[video_id].Z_Offset);
 
 	            //Position video group for initial data
@@ -1113,6 +1194,38 @@
 			}
 		});
 
+		//ADD ENVIRONMENT INFO
+		function addEnvInfo(locationIndex=999,title="Placeholder",subtitle="This location has supplied no information, contact the webmaster!",listItems=["No information.", "Please contact admin."]) {
+			//Format the list for HTML
+			var listCompile = "";
+			for (var i=0;i<listItems.length;i++) {
+				listCompile += "<li>"+listItems[i]+"</li>";
+			}
+			//Compile info
+		    var location_info = {
+		        Title: title,
+		        Subtitle: subtitle,
+		        List: listCompile
+		    };
+		    //Add to global array & save index
+		    var location_info_index = LOCATION_INFO.push(location_info);
+		    location_info_index -= 1;
+		    LOCATION[locationIndex].LocationInfoIndex = location_info_index;
+		}
+
+		//POPULATE ENVIRONMENT INFO POPUP
+		function populateEnvInfoPopup(locationIndex=999) {
+			$(".ARTSTATION_EnvInfoTitle").text(LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].Title);
+			$(".ARTSTATION_EnvInfoSubtitle").text(LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].Subtitle);
+			$(".ARTSTATION_EnvInfoList").html(LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].List);
+		}
+
+		//CLOSE INFO POPUP ON CLICK
+		$(".ARTSTATION_CloseEnvInfo").click(function() {
+			$(".ARTSTATION_EnvironmentInfoPopup").fadeOut(500);
+			INFO_POPUP_IS_HIDDEN = true;
+		});
+
 
 
 
@@ -1134,7 +1247,7 @@
 		var map_parent = new THREE.Group();
 
 		if (!USE_CESIUM) {
-			loadAllMapTiles(501320,5696910, 0.2); //ideally this will be placed with gps per tile, if i can find where the tile gps is stored
+			loadAllMapTiles(501340,5696940, 0.2); //ideally this will be placed with gps per tile, if i can find where the tile gps is stored
 		}
 
 		//LOAD ALL MAP TILES IN REQUESTED AREA AT REQUESTED SIZE
@@ -1152,6 +1265,7 @@
 			map_parent.rotation.z = (rotation * Math.PI / 180);
 			map_parent.position.x = startPosX;
 			map_parent.position.y = startPosY;
+			map_parent.position.z = -15; //Temp fix ONLY
 			map_parent.name = "ARTSTATION_Map";
 			viewer.scene.scene.add(map_parent);
 		}
