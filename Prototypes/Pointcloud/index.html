@@ -5,7 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 	<title>ARTSTATION Pointcloud Test</title>
 
-	<link rel="stylesheet" type="text/css" href="SCRIPTS/bootstrap/css/bootstrap.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/bootswatch/bootstrap.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/font-awesome/css/all.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/potree/potree.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/jquery-ui/jquery-ui.min.css">
@@ -17,7 +17,7 @@
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css">
 
 	<style>
-		video {
+		video, #ARTSTATION_GoogleMap {
 			display:none;
 		}
 		.potree_container {
@@ -41,61 +41,52 @@
 			position:absolute;
 			bottom:-1px;
 			z-index:900;
-			border-radius: 0 !important;
 			outline: none !important;
-			border: 1px solid black;
 			cursor: pointer;
 			font-size: 30px;
-			background: #e2e2e2;
-			transition: background 1s;
 			text-align:center;
-			height: 112px;
-			width: 112px;
+			width: 70px;
+			height: 70px;
 			display: none;
-		}
-		.ARTSTATION_ControlBtn:hover {
-			background: #eaeaea;
-		}
-		.ARTSTATION_ControlBtn:active {
-			background: #fff;
+			margin: 30px;
 		}
 		.ARTSTATION_LeftBtn {
 			left: -1px;
 		}
 		.DollyZoomOut, .ARTSTATION_PauseBtn {
-			margin-left: 111px;
+			margin-left: 110px;
 		}
 		.ARTSTATION_VideoTimer {
-			margin-left: 222px;
+			margin-left: 205px;
 			width: calc(100% - 331px);
-			cursor: default;
+			cursor: default !important;
+			pointer-events: none !important;
 		}
 		.ARTSTATION_RightBtn {
 			right: -1px;
 		}
 		@media (max-width: 768px) {
-			.ARTSTATION_ControlBtn {
-				height: 50px;
-				width: 50px;
-			}
 			.DollyZoomOut, .ARTSTATION_PauseBtn {
-				margin-left: 49px;
+				margin-left: 110px;
 			}
 			.ARTSTATION_VideoTimer {
-				margin-left: 98px;
-				width: calc(100% - 96px);
+				margin-left: 194px;
+				width: calc(100% - 222px);
 			}
 			.ARTSTATION_RightBtn {
 				top: -1px !important;
 				bottom: auto !important;
+				z-index: 998;
 			}
 			.ARTSTATION_VideoProgressText {
-				bottom: 48px !important;
+				bottom: 38px !important;
+				font-size: 20px;
 			}
 		}
 		.ARTSTATION_VideoProgressText {
 			position:relative;
-			bottom: 78px;
+			bottom: 45px;
+			color: #363636 !important;
 		}
 		.modal-backdrop {
 			z-index: 950;
@@ -133,19 +124,6 @@
 			text-align: center; 
 			width: 100%;
 		}
-		.ARTSTATION_EnvironmentInfoPopup {
-			position: absolute;
-			top: -1px;
-			left: -1px;
-			max-width: 500px;
-			width: 100%;
-			z-index: 999;
-			background: #e2e2e2;
-			color: black;
-			border: 1px solid black;
-			padding: 20px;
-			display: none;
-		}
 		.ARTSTATION_VideoTitle {
 			position:absolute;
 			left:0;
@@ -154,7 +132,7 @@
 			text-align: center;
 			color: white;
 			text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;  
-			z-index: 999;
+			z-index: 997;
 			font-size: 35px;
 			display:none;
 		}
@@ -170,6 +148,7 @@
 	<script src="SCRIPTS/jquery-ui/jquery-ui.min.js"></script>
 	<script src="SCRIPTS/three.js/build/three.js"></script>
     <script src="SCRIPTS/three.js/GLTFLoader.js"></script>
+    <script src="SCRIPTS/three.js/CSS3DRenderer.js"></script>
 	<script src="SCRIPTS/other/BinaryHeap.js"></script>
 	<script src="SCRIPTS/tween/Tween.js"></script>
 	<script src="SCRIPTS/d3/d3.js"></script>
@@ -193,26 +172,16 @@
 		</center>
 	</noscript>
 
-	<!-- ARTSTATION Environment Info Popup -->
-	<div class="ARTSTATION_EnvironmentInfoPopup">
-		<h1 class="ARTSTATION_EnvInfoTitle"></h1>
-		<p class="ARTSTATION_EnvInfoSubtitle"></p>
-		<ul class="ARTSTATION_EnvInfoList"></ul>
-		<div align="right">
-			<button class="ARTSTATION_CloseEnvInfo btn btn-success">Close</button>
-		</div>
-	</div>
-
 	<!-- ARTSTATION Camera Dolly Buttons -->
-	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-plus"></i>
 	</button>
-	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomOut OnlyInEnvironment" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomOut();" ontouchend="StopDollyZoom();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomOut OnlyInEnvironment" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomOut();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-minus"></i>
 	</button>
 
 	<!-- ARTSTATION Home Button -->
-	<button class="ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_HomeBtn OnlyInEnvironment" onclick="ReturnToWorldView();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_HomeBtn OnlyInEnvironment" onclick="ReturnToWorldView();">
 		<i class="fas fa-home"></i>
 	</button>
 
@@ -220,15 +189,15 @@
 	<div class="ARTSTATION_VideoTitle OnlyInVideo"></div>
 
 	<!-- ARTSTATION Video Controls -->
-	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PlayBtn OnlyInVideo" onclick="playCurrentVideo();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PlayBtn OnlyInVideo" onclick="playCurrentVideo();">
 		<i class="fas fa-play"></i>
 	</button>
-	<button class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PauseBtn OnlyInVideo" onclick="pauseCurrentVideo();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PauseBtn OnlyInVideo" onclick="pauseCurrentVideo();">
 		<i class="fas fa-pause"></i>
 	</button>
 
 	<!-- ARTSTATION Video Timer -->
-	<div class="ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoTimer OnlyInVideo progress">
+	<div class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoTimer OnlyInVideo progress">
 		<div class="ARTSTATION_VideoProgressBar progress-bar progress-bar-striped progress-bar-animated" style="width:0%; height:100%;"></div>
 		<div class="ARTSTATION_VideoProgressText">
 			<b><span class="ARTSTATION_CurrentVideoTime">0:00</span> / <span class="ARTSTATION_FullVideoTime">0:00</span></b>
@@ -236,7 +205,7 @@
 	</div>
 
 	<!-- ARTSTATION Exit Video -->
-	<button class="ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_ExitBtn OnlyInVideo" onclick="exitCurrentVideo();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_ExitBtn OnlyInVideo" onclick="exitCurrentVideo();">
 		<i class="fas fa-times"></i>
 	</button>
 
@@ -254,7 +223,7 @@
 					</ul>
 				</div>
 				<div class="modal-footer">
-					<button type="button" class="btn btn-success" data-dismiss="modal">OK</button>
+					<button type="button" class="btn btn-success" data-dismiss="modal" onclick="hideInfoPopup();">OK</button>
 				</div>
 			</div>
 		</div>
@@ -389,6 +358,7 @@
 		//SET INITIAL STATE
 		setState(IN_WORLDVIEW, false);
 		StateChangeUI(UI_RESET);
+		ToggleMarkerVisibility(false,false);
 
 		//ENABLE DEMO PANEL
 		/*
@@ -627,52 +597,46 @@
 			transition_camera.fov = viewer.scene.getActiveCamera().fov;
 			tracking_camera.fov = viewer.scene.getActiveCamera().fov;
 
-		    var GLTF_Loader = new THREE.GLTFLoader();
-		    GLTF_Loader.setCrossOrigin("anonymous"); //Using subdomain, cross-origin
-		    GLTF_Loader.load("http://assets.artstation.mattfiler.co.uk/MESHES/video_marker/video_marker.gltf", 
-		    function (GLTF_File) {
-		        GLTF_File.scene.traverse((node) => {       
-		            if (node.isMesh && node.name == "camera") {
-		    			//Grab mesh of marker and add to scene
-			            node.name = "ARTSTATION_VideoMarker";
-						viewer.scene.scene.add(node);
+			//Create sprite video marker
+			var sprite_material = new THREE.SpriteMaterial({map: video_texture, color: 0xffffff});
+			var marker_sprite = new THREE.Sprite(sprite_material);
+			marker_sprite.scale.set(17,11,0);
+            marker_sprite.name = "ARTSTATION_VideoMarker";
+			viewer.scene.scene.add(marker_sprite);
 
-					    //Grab positioning data and save to array
-					    var video_position_data = [];
-					    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&video=" + videoName; 
-					    $.getJSON(video_position_data_path, function(data) {
-					        $.each(data, function(key, val) {
-					            video_position_data.push(val); //Add to array
-					        });
-					    });
-
-					    //Compile video data
-					    var video_data = {
-					        Name: videoName,
-					        ElementID: LOCATION[locationIndex].Name+"_"+videoName,
-					        LocationDataIndex: locationIndex, 
-					        VideoMesh: video_plane_mesh,
-					        ImportedTrackData: video_position_data,
-					        LockCamera: false,
-					        VideoMarker: node,
-					        VideoCamera: tracking_camera,
-					        VideoParent: video_parent, //should really start using this and depreciate VideoMesh.
-					        X_Offset: xOffset,
-					        Y_Offset: yOffset,
-					        Z_Offset: zOffset,
-					        TransitionCamera: transition_camera,
-					        VideoTitle: videoTitle,
-					        LocationInfoIndex: null //set when information is added
-					    };
-					    //Add to global video array
-					    var video_id = VIDEO.push(video_data);
-					    video_id -= 1;
-
-					    //Enable video position movement
-					    moveVideoFromGPS(video_id);
-		            }
+		    //Grab positioning data and save to array
+		    var video_position_data = [];
+		    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&video=" + videoName; 
+		    $.getJSON(video_position_data_path, function(data) {
+		        $.each(data, function(key, val) {
+		            video_position_data.push(val); //Add to array
 		        });
 		    });
+
+		    //Compile video data
+		    var video_data = {
+		        Name: videoName,
+		        ElementID: LOCATION[locationIndex].Name+"_"+videoName,
+		        LocationDataIndex: locationIndex, 
+		        VideoMesh: video_plane_mesh,
+		        ImportedTrackData: video_position_data,
+		        LockCamera: false,
+		        VideoMarker: marker_sprite,
+		        VideoCamera: tracking_camera,
+		        VideoParent: video_parent, //should really start using this and depreciate VideoMesh.
+		        X_Offset: xOffset,
+		        Y_Offset: yOffset,
+		        Z_Offset: zOffset,
+		        TransitionCamera: transition_camera,
+		        VideoTitle: videoTitle,
+		        LocationInfoIndex: null //set when information is added
+		    };
+		    //Add to global video array
+		    var video_id = VIDEO.push(video_data);
+		    video_id -= 1;
+
+		    //Enable video position movement
+		    moveVideoFromGPS(video_id);
 		}
 
 		//MOVE VIDEO ON TIME UPDATE FROM GPS DATA
@@ -706,8 +670,13 @@
 		        var should_update = false;
 		        var update_step_up = 0;
 		        var time_adjustment = 0;
-		        if (VIDEO[video_index].ImportedTrackData[run_count][11] == "CSV") {
-		        	time_adjustment = 500; //Time adjustment for Litchi data delay
+		        try {
+			        if (VIDEO[video_index].ImportedTrackData[run_count][11] == "CSV") {
+			        	time_adjustment = 500; //Time adjustment for Litchi data delay
+			        }
+		        }
+		        catch(err) {
+		        	//console.log(err);
 		        }
 		        for (var i=0; i<20; i++) {
 		        	try {
@@ -943,13 +912,12 @@
 			if (state == UI_RESET) {
 				$(".OnlyInEnvironment").hide();
 				$(".OnlyInVideo").hide();
-				$(".ARTSTATION_EnvironmentInfoPopup").hide();
 			} else if (state == UI_SHOW_ENVIRONMENT) {
 				$(".OnlyInEnvironment").fadeIn(500);
-				if (!INFO_POPUP_IS_HIDDEN) { $(".ARTSTATION_EnvironmentInfoPopup").fadeIn(500); }
+				if (!INFO_POPUP_IS_HIDDEN) { $("#ARTSTATION_ControlPanel").modal("show"); }
 			} else if (state == UI_HIDE_ENVIRONMENT) {
 				$(".OnlyInEnvironment").fadeOut(500);
-				if (!INFO_POPUP_IS_HIDDEN) { $(".ARTSTATION_EnvironmentInfoPopup").fadeOut(500); }
+				if (!INFO_POPUP_IS_HIDDEN) { $("#ARTSTATION_ControlPanel").modal("hide"); }
 			} else if (state == UI_SHOW_VIDEO) {
 				$(".OnlyInVideo").fadeIn(500);
 			} else if (state == UI_HIDE_VIDEO) {
@@ -1215,16 +1183,16 @@
 
 		//POPULATE ENVIRONMENT INFO POPUP
 		function populateEnvInfoPopup(locationIndex=999) {
-			$(".ARTSTATION_EnvInfoTitle").text(LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].Title);
-			$(".ARTSTATION_EnvInfoSubtitle").text(LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].Subtitle);
-			$(".ARTSTATION_EnvInfoList").html(LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].List);
+			$(".modal-title").html(LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].Title);
+			$(".modal-body").html("<b>" + LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].Subtitle + "</b><br><br>" + LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].List);
 		}
 
 		//CLOSE INFO POPUP ON CLICK
-		$(".ARTSTATION_CloseEnvInfo").click(function() {
-			$(".ARTSTATION_EnvironmentInfoPopup").fadeOut(500);
-			INFO_POPUP_IS_HIDDEN = true;
-		});
+		function hideInfoPopup() {
+			if (WORLD_STATE == IN_ENVIRONMENT) {
+				INFO_POPUP_IS_HIDDEN = true;
+			}
+		}
 
 
 
@@ -1233,6 +1201,33 @@
 		/*
 			NEW MAP LOADER
 		*/
+
+/*
+		This implementation is stale and will not function as there is no CSS3D renderer.
+		There was still a lag between the standard WebGL scene in demos and I'm not going to pursue this.
+		Will keep it for reference however!
+
+		var div = document.createElement( 'div' );
+		div.style.width = '1000px';
+		div.style.height = '1000px';
+		div.style.backgroundColor = '#000';
+		var iframe = document.createElement( 'iframe' );
+		iframe.style.width = '1000px';
+		iframe.style.height = '1000px';
+		iframe.style.border = '0px';
+		iframe.id = "ARTSTATION_GoogleMap";
+		iframe.src = "https://www.google.com/maps/embed?pb=!1m10!1m8!1m3!1d28164.82613411929!2d-2.8996325890984607!3d51.394924639926344!3m2!1i1024!2i768!4f13.1!5e0!3m2!1sen!2sus!4v1533552963224";
+		iframe.crossOrigin = 'anonymous';
+		div.appendChild(iframe);
+		var object = new THREE.CSS3DObject(div);
+		object.position.x = 504165.57444763184;
+		object.position.y = 5693866.7080078125;
+		object.position.z = 0;
+		//object.scale.set(999,999,0);
+		object.crossOrigin = 'anonymous';
+		console.log(object);
+		viewer.scene.scene.add(object);
+*/
 
 
 
@@ -1280,7 +1275,7 @@
 			map_texture.wrapS = THREE.RepeatWrapping;
 			map_texture.wrapT = THREE.RepeatWrapping;
 			map_texture.repeat.set(1, 1);
-			var map_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: map_texture, transparent: true, opacity: 0.9});
+			var map_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: map_texture, transparent: true, opacity: 1});
 			var map_plane_mesh = new THREE.Mesh(map_plane, map_material);
 			map_plane_mesh.name="ARTSTATION_MapTile";
 			map_plane_mesh.position.set(xOffset, yOffset, 48);

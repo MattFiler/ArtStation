@@ -1,7 +1,12 @@
 /*
 
 	Original potree script created by Markus Schütz.
-	Modified by Matt Filer for ARTSTATION.
+	Version: 2f2e9d1.
+
+	Modified for use in ARTSTATION by Matt Filer.
+
+	Please mark any edits with the following comment standard:
+		"MFILER-010118" (E.G. Matt Filer - 1st January 2018)
 
 */
 
@@ -7019,22 +7024,15 @@ void main() {
 				// let sphere = node.getBoundingSphere().clone().applyMatrix4(node.sceneNode.matrixWorld);
 				let sphere = node.getBoundingSphere().clone().applyMatrix4(this.matrixWorld);
 
-				//MFILER-090718 START: Increasing chance of ray intersecting on mobile!
-				var device = new MobileDetect(window.navigator.userAgent);
-				if (device.mobile() != null) {
-					sphere.radius *= 10; 
-				}
-				//MFILER-090718 END
+				//MFILER-060818: Larger "hitbox" for pointclouds.
+				sphere.radius *= 999999999; 
 
 				if (_ray.intersectsSphere(sphere)) {
 					nodesOnRay.push(node);
 				}
 
-				//MFILER-090718 START: Tidy up mobile optimisations
-				if (device.mobile() != null) {
-					sphere.radius /= 10; 
-				}
-				//MFILER-090718 END
+				//MFILER-060818: Tidy up.
+				sphere.radius /= 999999999; 
 			}
 
 			return nodesOnRay;
