@@ -15050,8 +15050,16 @@ void main() {
 			this.currentDevice = new MobileDetect(window.navigator.userAgent); // MFILER-090718
 			this.rotationYawPrev = 0; //MFILER-260718
 			this.rotationYawCurr = 0; //MFILER-260718
+			this.zoomRadiusPrev = 0; //MFILER-080818
+			this.zoomRadiusCurr = 0; //MFILER-080818
 
 			this.tweens = [];
+
+			//MFILER-080818 START: Enable pinch zoom on mobile
+			if (this.currentDevice.mobile() != null) {
+				this.scrollZoomEnabled = true;
+			}
+			//MFILER-080818 END
 
 			let drag = (e) => {
 				//MFILER-090718 START: Disable panning on mobile for now, this needs to be sorted (TODO)
@@ -15129,13 +15137,18 @@ void main() {
 				previousTouch = e;
 				
 				this.rotationYawPrev = this.scene.view.yaw; //MFILER-260718
+				this.zoomRadiusPrev = this.scene.view.radius; //MFILER-080818
 			};
 
 			let touchEnd = e => {
 				this.rotationYawCurr = this.scene.view.yaw; //MFILER-260718
+				this.zoomRadiusCurr = this.scene.view.radius; //MFILER-080818
+
+				console.log(this.zoomRadiusPrev - this.zoomRadiusCurr);
 
 				//MFILER-260718 START
-				if (this.rotationYawPrev - this.rotationYawCurr <= 0.1 && this.rotationYawPrev - this.rotationYawCurr >= -0.1) {
+				if ((this.rotationYawPrev - this.rotationYawCurr <= 0.1 && this.rotationYawPrev - this.rotationYawCurr >= -0.1) &&
+					(this.zoomRadiusPrev - this.zoomRadiusCurr <= 0.5 && this.zoomRadiusPrev - this.zoomRadiusCurr >= -0.5)) {
 					if (!this.worldViewCameraConfig && !this.isTransitioning) {
 						this.zoomToLocation({x: previousTouch.touches[0].screenX, y: previousTouch.touches[0].screenY}, false, 1500); 
 					}
@@ -15147,7 +15160,7 @@ void main() {
 
 			let touchMove = e => {
 				if (e.touches.length === 2 && previousTouch.touches.length === 2){
-					if (this.scrollZoomEnabled && !this.isTransitioning) { //MFILER-090718
+					if (this.scrollZoomEnabled && !this.isTransitioning && !this.worldViewCameraConfig) { //MFILER-090718, MFILER-080818 - Adding this.worldViewCameraConfig
 						let prev = previousTouch;
 						let curr = e;
 

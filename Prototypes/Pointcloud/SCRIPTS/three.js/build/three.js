@@ -4849,7 +4849,7 @@
 
 			if ( target === undefined ) {
 
-				console.warn( 'THREE.Box3: .getCenter() target is now required' );
+				//console.warn( 'THREE.Box3: .getCenter() target is now required' ); MFILER-080818
 				target = new Vector3();
 
 			}

@@ -66,6 +66,9 @@
 			right: -1px;
 		}
 		@media (max-width: 768px) {
+			.DesktopOnly {
+				display: none !important;
+			}
 			.DollyZoomOut, .ARTSTATION_PauseBtn {
 				margin-left: 110px;
 			}
@@ -99,9 +102,7 @@
 		}
 		.annotation {
 			margin-top: -20px !important;
-    		margin-left: 13px !important;
     		cursor: default !important;
-    		pointer-events: none !important;
 		}
 		noscript {
 			position: absolute;
@@ -135,6 +136,15 @@
 			z-index: 997;
 			font-size: 35px;
 			display:none;
+		}
+		.modal-header {
+			background: url("http://assets.artstation.mattfiler.co.uk/IMAGES/celtic.jpg") repeat;
+			color: white !important;
+			text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;  
+		}
+		.close {
+			color: white !important;
+			text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
 		}
 	</style>
 </head>
@@ -173,10 +183,10 @@
 	</noscript>
 
 	<!-- ARTSTATION Camera Dolly Buttons -->
-	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment DesktopOnly" onmousedown="DollyZoomIn();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomIn();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-plus"></i>
 	</button>
-	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomOut OnlyInEnvironment" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomOut();" ontouchend="StopDollyZoom();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomOut OnlyInEnvironment DesktopOnly" onmousedown="DollyZoomOut();" onmouseup="StopDollyZoom();" ontouchstart="DollyZoomOut();" ontouchend="StopDollyZoom();">
 		<i class="fas fa-search-minus"></i>
 	</button>
 
@@ -215,7 +225,7 @@
 			<div class="modal-content">
 				<div class="modal-header">
 					<h4 class="modal-title">ARTSTATION Controls</h4>
-					<button type="button" class="close" data-dismiss="modal">&times;</button>
+					<button type="button" class="close" data-dismiss="modal" onclick="hideInfoPopup();">&times;</button>
 				</div>
 				<div class="modal-body">
 					<ul class="ARTSTATION_DeviceControls">
@@ -245,6 +255,10 @@
 		var HIDE_MAP_WHEN_TRACKING_VIDEO = false;
 		var USE_CESIUM = false;
 		var INFO_POPUP_IS_HIDDEN = false;
+
+		//WORLD VIEW WEB
+		var WORLD_VIEW_WEB_GEOMETRY = new THREE.Geometry();
+		var WORLD_VIEW_WEB_MATERIAL = new THREE.LineBasicMaterial({color: 0xff9000, transparent: true, opacity: 1});
 
 		//DEFINE DATA STORES
 		var VIDEO = [];
@@ -375,6 +389,8 @@
 		loadLocation(
 			"field", 
 			50, 
+			true,
+			[0,0],
 			function(location) { 
 				//Videos In Environment
 				createVideo(location, "DJI_0003", "Dead Grass Circle", 20); 
@@ -393,6 +409,8 @@
 		loadLocation(
 			"st_thomas_head", 
 			45, 
+			true,
+			[0,0],
 			function(location) { 
 				//Videos In Environment
 				createVideo(location, "DJI_0023", "Out Over The River"); 
@@ -402,6 +420,36 @@
 					"St Thomas Head", 
 					"An old MOD base used during the war to develop and test a range of explosives. Before being discontinued it was used for bomb disposal.", 
 					["Located in Somerset.", "Now demolished.", "Out of service."]);
+			}
+		);
+
+		//LOAD FARM (NO POINTCLOUD)
+		loadLocation(
+			"farm",
+			45,
+			false,
+			[51.385721, -2.854938],
+			function(location) { 
+				//Environment Info
+				addEnvInfo(location, 
+					"Farm", 
+					"The farm is located between St Thomas Head and the model aircraft field. No pointcloud data is available.", 
+					["Low data location.", "A farm.", "Something else."]);
+			}
+		);
+
+		//LOAD SEA WALL (NO POINTCLOUD)
+		loadLocation(
+			"sea_wall",
+			45,
+			false,
+			[51.406961, -2.895358],
+			function(location) { 
+				//Environment Info
+				addEnvInfo(location, 
+					"Sea Wall", 
+					"The sea wall is located near to the shooting range, close to St Thomas Head. It is a location with no pointcloud.", 
+					["Low data location.", "A sea wall.", "Something else."]);
 			}
 		);
 
@@ -490,7 +538,8 @@
 		requestAnimationFrame(loop);
 
 		//LOAD LOCATION POINTCLOUD INTO VIEWER
-		function loadLocation(locationName, zOffset=0, callback=function(){}) {
+		function loadLocation(locationName, zOffset=0, isPointcloud=true, GPS=[0,0], callback=function(){}) {
+			if (isPointcloud) {
 		        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/"+locationName+"/cloud.js", locationName, e => {
 		        		//Position and configure pointcloud and add to scene
 		                let pointcloud = e.pointcloud;
@@ -511,14 +560,23 @@
 					    };
 					    var location_data_length = LOCATION.push(location_data);
 
+					    //Find centre of pointcloud for annotation position 
+					    pointcloud.updateMatrixWorld();
+						let box = pointcloud.pcoGeometry.tightBoundingBox.clone();
+						box.applyMatrix4(pointcloud.matrixWorld);
+						let center = box.getCenter();
+
 					    //Add location name annotation
 					    {
 							let locationAnnotation = new Potree.Annotation({
-								position: pointcloud.position,
+								position: center,
 								title: locationName.replace(/_/g, " ")
 							});
 							viewer.scene.annotations.add(locationAnnotation);
 						}
+
+						//Add location to the web
+						updateWorldWeb(center);
 
 						Potree.measureTimings = true;
 						
@@ -536,9 +594,39 @@
 							let maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
 						}
 
-						//Run callback to load videos once pointcloud is finished
+						//Run callback to load videos and add env data
 						callback(location_data_length - 1);
 		        });
+		    }
+		    else
+		    {
+                //Compile location data and save to global array
+			    var location_data = {
+			        Name: locationName,
+			        UUID: null,
+			        Z_Offset: zOffset
+			    };
+			    var location_data_length = LOCATION.push(location_data);
+
+		    	//Add location name annotation
+                var coords = ConvertToUTM(GPS[0], GPS[1]);
+			    {
+					let locationAnnotation = new Potree.Annotation({
+						position: new THREE.Vector3(coords[0], coords[1], zOffset),
+						title: locationName.replace(/_/g, " ")
+					});
+					locationAnnotation.addEventListener('click', event => {
+						clickedEnvironmentMarker(location_data_length - 1); //On click show info popup
+					});
+					viewer.scene.annotations.add(locationAnnotation);
+				}
+
+				//Add location to the web
+				updateWorldWeb(new THREE.Vector3(coords[0], coords[1], zOffset));
+
+				//Run callback to add env data
+				callback(location_data_length - 1);
+		    }
 		}
 
 		//CREATE A VIDEO IN WORLD
@@ -568,7 +656,7 @@
 		    video_texture.minFilter = THREE.LinearFilter;
 		    video_texture.magFilter = THREE.LinearFilter;
 		    video_texture.format = THREE.RGBFormat;
-		    var video_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: video_texture, transparent: true, opacity: 0}); //opacity needs to be 0 here if fading is re-enabled
+		    var video_material = new THREE.MeshBasicMaterial({color: 0xffffff, map: video_texture, transparent: true, opacity: 0}); //opacity needs to be 0 here if fading is re-enabled
 		    var video_plane_mesh = new THREE.Mesh(video_plane, video_material);
 		    video_plane_mesh.material.side = THREE.DoubleSide;
 		    video_plane_mesh.name = "ARTSTATION_VideoPlane"; 
@@ -896,9 +984,20 @@
 			//Basic UI updates
 			if (WORLD_STATE == IN_ENVIRONMENT) {
 				StateChangeUI(UI_SHOW_ENVIRONMENT);
-			} else if (WORLD_STATE == IN_WORLDVIEW) {
+				for (var i=0; i<viewer.scene.scene.children.length; i++) {
+					if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
+						viewer.scene.scene.children[i].material.opacity = 0;
+					}
+				}
+			} 
+			else if (WORLD_STATE == IN_WORLDVIEW) {
 				StateChangeUI(UI_HIDE_ENVIRONMENT);
 				INFO_POPUP_IS_HIDDEN = false;
+				for (var i=0; i<viewer.scene.scene.children.length; i++) {
+					if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
+						viewer.scene.scene.children[i].material.opacity = 1;
+					}
+				}
 			}
 
 			//Marker click sanity bug-fix
@@ -1192,6 +1291,25 @@
 			if (WORLD_STATE == IN_ENVIRONMENT) {
 				INFO_POPUP_IS_HIDDEN = true;
 			}
+		}
+
+		//ENVIRONMENT MARKER CLICK EVENT
+		function clickedEnvironmentMarker(location) {
+			populateEnvInfoPopup(location);
+			$("#ARTSTATION_ControlPanel").modal("show");
+		}
+
+		//UPDATE WORLD VIEW WEB
+		function updateWorldWeb(position) {
+			for (var i=0; i<viewer.scene.scene.children.length; i++) {
+				if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
+					viewer.scene.scene.remove(viewer.scene.scene.children[i]);
+				}
+			}
+			WORLD_VIEW_WEB_GEOMETRY.vertices.push(position);
+			var WORLD_VIEW_WEB = new THREE.Line(WORLD_VIEW_WEB_GEOMETRY, WORLD_VIEW_WEB_MATERIAL);
+			WORLD_VIEW_WEB.name = "ARTSTATION_WorldViewWeb";
+			viewer.scene.scene.add(WORLD_VIEW_WEB);
 		}
 
 
