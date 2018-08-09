@@ -15064,7 +15064,7 @@ void main() {
 			let drag = (e) => {
 				//MFILER-090718 START: Disable panning on mobile for now, this needs to be sorted (TODO)
 				if (this.currentDevice.mobile() != null && this.worldViewCameraConfig) { //MFILER-260718: Re-enabling, but only when out of world view.
-					return;
+					//return;
 				}
 				//MFILER-090718 END
 				if (!this.isTransitioning) { //MFILER-050718
@@ -15144,11 +15144,9 @@ void main() {
 				this.rotationYawCurr = this.scene.view.yaw; //MFILER-260718
 				this.zoomRadiusCurr = this.scene.view.radius; //MFILER-080818
 
-				console.log(this.zoomRadiusPrev - this.zoomRadiusCurr);
-
 				//MFILER-260718 START
 				if ((this.rotationYawPrev - this.rotationYawCurr <= 0.1 && this.rotationYawPrev - this.rotationYawCurr >= -0.1) &&
-					(this.zoomRadiusPrev - this.zoomRadiusCurr <= 0.5 && this.zoomRadiusPrev - this.zoomRadiusCurr >= -0.5)) {
+					(this.zoomRadiusPrev - this.zoomRadiusCurr <= 0.5 && this.zoomRadiusPrev - this.zoomRadiusCurr >= -0.5)) { //MFILER-080818: Zoom check
 					if (!this.worldViewCameraConfig && !this.isTransitioning) {
 						this.zoomToLocation({x: previousTouch.touches[0].screenX, y: previousTouch.touches[0].screenY}, false, 1500); 
 					}
@@ -15261,6 +15259,12 @@ void main() {
 			this.clickedEnvironmentUUID = I.pointcloud.uuid; //MFILER-020718
 			this.focusPoint = I.location; //MFILER-060718
 
+			//MFILER-090818 START
+			if (this.clickedEnvironmentUUID != null) {
+				this.isTransitioning = shouldStopInteraction;
+			}
+			//MFILER-090818 END
+
 			let targetRadius = 0;
 			{
 				let minimumJumpDistance = 0.2;
@@ -15287,6 +15291,8 @@ void main() {
 
 			//let animationDuration = 600; - MFILER-050718: Now a function parameter.
 			let easing = TWEEN.Easing.Cubic.Out; //MFILER-160718: Swapped from TWEEN.Easing.Quartic.Out
+
+			this.stopTweens(); //MFILER-090818
 
 			{ // animate
 				let value = {x: 0};

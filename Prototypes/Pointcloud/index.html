@@ -53,7 +53,7 @@
 		.ARTSTATION_LeftBtn {
 			left: -1px;
 		}
-		.DollyZoomOut, .ARTSTATION_PauseBtn {
+		.DollyZoomOut, .ARTSTATION_PauseBtn, .ARTSTATION_VideoZoomOut {
 			margin-left: 110px;
 		}
 		.ARTSTATION_VideoTimer {
@@ -65,11 +65,16 @@
 		.ARTSTATION_RightBtn {
 			right: -1px;
 		}
+		@media (min-width: 769px) {
+			.MobileOnly {
+				display: none !important;
+			}
+		}
 		@media (max-width: 768px) {
 			.DesktopOnly {
 				display: none !important;
 			}
-			.DollyZoomOut, .ARTSTATION_PauseBtn {
+			.DollyZoomOut, .ARTSTATION_PauseBtn, .ARTSTATION_VideoZoomOut {
 				margin-left: 110px;
 			}
 			.ARTSTATION_VideoTimer {
@@ -158,7 +163,7 @@
 	<script src="SCRIPTS/jquery-ui/jquery-ui.min.js"></script>
 	<script src="SCRIPTS/three.js/build/three.js"></script>
     <script src="SCRIPTS/three.js/GLTFLoader.js"></script>
-    <script src="SCRIPTS/three.js/CSS3DRenderer.js"></script>
+    <!--<script src="SCRIPTS/three.js/CSS3DRenderer.js"></script>-->
 	<script src="SCRIPTS/other/BinaryHeap.js"></script>
 	<script src="SCRIPTS/tween/Tween.js"></script>
 	<script src="SCRIPTS/d3/d3.js"></script>
@@ -198,12 +203,20 @@
 	<!-- ARTSTATION Video Title -->
 	<div class="ARTSTATION_VideoTitle OnlyInVideo"></div>
 
-	<!-- ARTSTATION Video Controls -->
-	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PlayBtn OnlyInVideo" onclick="playCurrentVideo();">
+	<!-- ARTSTATION Video Controls for Mobile -->
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PlayBtn OnlyInVideo MobileOnly" onclick="playCurrentVideo();">
 		<i class="fas fa-play"></i>
 	</button>
-	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PauseBtn OnlyInVideo" onclick="pauseCurrentVideo();">
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PauseBtn OnlyInVideo MobileOnly" onclick="pauseCurrentVideo();">
 		<i class="fas fa-pause"></i>
+	</button>
+
+	<!-- ARTSTATION Video Controls for Desktop -->
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoZoomIn OnlyInVideo DesktopOnly" onmousedown="videoZoomIn();" onmouseup="stopVideoZoom();" ontouchstart="videoZoomIn();" ontouchend="stopVideoZoom();">
+		<i class="fas fa-plus"></i>
+	</button>
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoZoomOut OnlyInVideo DesktopOnly" onmousedown="videoZoomOut();" onmouseup="stopVideoZoom();" ontouchstart="videoZoomOut();" ontouchend="stopVideoZoom();">
+		<i class="fas fa-minus"></i>
 	</button>
 
 	<!-- ARTSTATION Video Timer -->
@@ -248,23 +261,23 @@
 	</div>	
 
 	<script>
-		//SHOW CONTROLS MODAL (WIP)
+		//SHOW CONTROLS MODAL
 		$("#ARTSTATION_ControlPanel").modal("show");
 
 		//DEFINE SETTINGS
 		var HIDE_MAP_WHEN_TRACKING_VIDEO = false;
 		var USE_CESIUM = false;
 		var INFO_POPUP_IS_HIDDEN = false;
-
-		//WORLD VIEW WEB
-		var WORLD_VIEW_WEB_GEOMETRY = new THREE.Geometry();
-		var WORLD_VIEW_WEB_MATERIAL = new THREE.LineBasicMaterial({color: 0xff9000, transparent: true, opacity: 1});
+		var NUMBER_OF_LOADED_LOCATIONS = 0;
+		var DEFAULT_CAMERA_OFFSET_DESKTOP = 30;
+		var DEFAULT_CAMERA_OFFSET_MOBILE = 50;
 
 		//DEFINE DATA STORES
 		var VIDEO = [];
 		var LOCATION = [];
 		var LOCATION_INFO = [];
 		var DOLLY_COUNTER = [0,0];
+		var VIDEO_DOLLY_COUNTER = [0,0];
 
 		//DEFINE WORLD STATES
 		var IN_WORLDVIEW = 0; //Using slow drag to look around controls
@@ -385,6 +398,17 @@
 		});
 		*/
 
+		//------------------------------------
+
+
+		/*
+
+		ADD LOCATIONS HERE 
+
+		*/
+
+		var NUMBER_OF_LOCATIONS = 4; 
+
 		//LOAD FIELD
 		loadLocation(
 			"field", 
@@ -402,6 +426,9 @@
 					"The Field", 
 					"The field is located just off of a model aircraft flight area, a great spot for testing the drone for this application!", 
 					["Located in Somerset.", "Lets you fly model aircraft.", "Other good stuff."]);
+
+				//Generate World Web
+				generateWorldWeb();
 			}
 		);
 
@@ -420,6 +447,9 @@
 					"St Thomas Head", 
 					"An old MOD base used during the war to develop and test a range of explosives. Before being discontinued it was used for bomb disposal.", 
 					["Located in Somerset.", "Now demolished.", "Out of service."]);
+
+				//Generate World Web
+				generateWorldWeb();
 			}
 		);
 
@@ -435,6 +465,9 @@
 					"Farm", 
 					"The farm is located between St Thomas Head and the model aircraft field. No pointcloud data is available.", 
 					["Low data location.", "A farm.", "Something else."]);
+
+				//Generate World Web
+				generateWorldWeb();
 			}
 		);
 
@@ -450,6 +483,9 @@
 					"Sea Wall", 
 					"The sea wall is located near to the shooting range, close to St Thomas Head. It is a location with no pointcloud.", 
 					["Low data location.", "A sea wall.", "Something else."]);
+
+				//Generate World Web
+				generateWorldWeb();
 			}
 		);
 
@@ -541,75 +577,74 @@
 		function loadLocation(locationName, zOffset=0, isPointcloud=true, GPS=[0,0], callback=function(){}) {
 			if (isPointcloud) {
 		        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/"+locationName+"/cloud.js", locationName, e => {
-		        		//Position and configure pointcloud and add to scene
-		                let pointcloud = e.pointcloud;
-		                let material = pointcloud.material;
-		                pointcloud.position.z = zOffset;
-		                viewer.scene.addPointCloud(pointcloud);
-		                material.pointColorType = Potree.PointColorType.RGB;
-		                material.size = 1;
-		                material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-		                material.shape = Potree.PointShape.CIRCLE;
-		                viewer.fitToScreen();
+	        		//Position and configure pointcloud and add to scene
+	                let pointcloud = e.pointcloud;
+	                let material = pointcloud.material;
+	                pointcloud.position.z = zOffset;
+	                viewer.scene.addPointCloud(pointcloud);
+	                material.pointColorType = Potree.PointColorType.RGB;
+	                material.size = 1;
+	                material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+	                material.shape = Potree.PointShape.CIRCLE;
+	                viewer.fitToScreen();
 
-		                //Compile location data and save to global array
-					    var location_data = {
-					        Name: locationName,
-					        UUID: pointcloud.uuid,
-					        Z_Offset: zOffset
-					    };
-					    var location_data_length = LOCATION.push(location_data);
+				    //Find centre of pointcloud for annotation position 
+				    pointcloud.updateMatrixWorld();
+					let box = pointcloud.pcoGeometry.tightBoundingBox.clone();
+					box.applyMatrix4(pointcloud.matrixWorld);
+					let center = box.getCenter();
 
-					    //Find centre of pointcloud for annotation position 
-					    pointcloud.updateMatrixWorld();
-						let box = pointcloud.pcoGeometry.tightBoundingBox.clone();
-						box.applyMatrix4(pointcloud.matrixWorld);
-						let center = box.getCenter();
+	                //Compile location data and save to global array
+				    var location_data = {
+				        Name: locationName,
+				        UUID: pointcloud.uuid,
+				        Z_Offset: zOffset,
+				        Position: center
+				    };
+				    var location_data_length = LOCATION.push(location_data);
 
-					    //Add location name annotation
-					    {
-							let locationAnnotation = new Potree.Annotation({
-								position: center,
-								title: locationName.replace(/_/g, " ")
-							});
-							viewer.scene.annotations.add(locationAnnotation);
-						}
+				    //Add location name annotation
+				    {
+						let locationAnnotation = new Potree.Annotation({
+							position: center,
+							title: locationName.replace(/_/g, " ")
+						});
+						viewer.scene.annotations.add(locationAnnotation);
+					}
 
-						//Add location to the web
-						updateWorldWeb(center);
+					Potree.measureTimings = true;
+					
+					//Zone 30U covers most of England and Wales so we should be fine with this - geoutm.js can always calculate for us.
+					let pointcloudProjection = "+proj=utm +zone=30 +ellps=GRS80 +datum=NAD83 +units=m +no_defs";
+					let mapProjection = proj4.defs("WGS84");
 
-						Potree.measureTimings = true;
-						
-						//Zone 30U covers most of England and Wales so we should be fine with this - geoutm.js can always calculate for us.
-						let pointcloudProjection = "+proj=utm +zone=30 +ellps=GRS80 +datum=NAD83 +units=m +no_defs";
-						let mapProjection = proj4.defs("WGS84");
+					window.toMap = proj4(pointcloudProjection, mapProjection);
+					window.toScene = proj4(mapProjection, pointcloudProjection);
+					
+					{
+						let bb = viewer.getBoundingBox();
 
-						window.toMap = proj4(pointcloudProjection, mapProjection);
-						window.toScene = proj4(mapProjection, pointcloudProjection);
-						
-						{
-							let bb = viewer.getBoundingBox();
+						let minWGS84 = proj4(pointcloudProjection, mapProjection, bb.min.toArray());
+						let maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
+					}
 
-							let minWGS84 = proj4(pointcloudProjection, mapProjection, bb.min.toArray());
-							let maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
-						}
-
-						//Run callback to load videos and add env data
-						callback(location_data_length - 1);
+					//Run callback to load videos and add env data
+					callback(location_data_length - 1);
 		        });
 		    }
 		    else
 		    {
                 //Compile location data and save to global array
+                var coords = ConvertToUTM(GPS[0], GPS[1]);
 			    var location_data = {
 			        Name: locationName,
 			        UUID: null,
-			        Z_Offset: zOffset
+			        Z_Offset: zOffset,
+			        Position: new THREE.Vector3(coords[0], coords[1], zOffset)
 			    };
 			    var location_data_length = LOCATION.push(location_data);
 
 		    	//Add location name annotation
-                var coords = ConvertToUTM(GPS[0], GPS[1]);
 			    {
 					let locationAnnotation = new Potree.Annotation({
 						position: new THREE.Vector3(coords[0], coords[1], zOffset),
@@ -620,9 +655,6 @@
 					});
 					viewer.scene.annotations.add(locationAnnotation);
 				}
-
-				//Add location to the web
-				updateWorldWeb(new THREE.Vector3(coords[0], coords[1], zOffset));
 
 				//Run callback to add env data
 				callback(location_data_length - 1);
@@ -672,7 +704,7 @@
 		    var tracking_camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000); 
 		    tracking_camera.position.x = 0;
 		    tracking_camera.position.y = 0;
-		    if (device.mobile() == null) { tracking_camera.position.z = 30; } else { tracking_camera.position.z = 50; } //mobile/desktop video offsets
+		    if (device.mobile() == null) { tracking_camera.position.z = DEFAULT_CAMERA_OFFSET_DESKTOP; } else { tracking_camera.position.z = DEFAULT_CAMERA_OFFSET_MOBILE; } //mobile/desktop video offsets
 		    tracking_camera.name = "ARTSTATION_TrackingCamera";
 		    video_plane_mesh.add(tracking_camera);
 
@@ -1057,6 +1089,8 @@
 			video_player.currentTime = 0;
 		    VIDEO[video_id].VideoMesh.visible = false;
 			ToggleMarkerVisibility(true, false);
+		    if (device.mobile() == null) { VIDEO[video_id].VideoCamera.position.z = DEFAULT_CAMERA_OFFSET_DESKTOP; } else { VIDEO[video_id].VideoCamera.position.z = DEFAULT_CAMERA_OFFSET_MOBILE; } 
+			VIDEO_DOLLY_COUNTER = [0,0]; 
 		}
 
 		//PAUSE VIDEO
@@ -1299,20 +1333,65 @@
 			$("#ARTSTATION_ControlPanel").modal("show");
 		}
 
-		//UPDATE WORLD VIEW WEB
-		function updateWorldWeb(position) {
-			for (var i=0; i<viewer.scene.scene.children.length; i++) {
-				if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
-					viewer.scene.scene.remove(viewer.scene.scene.children[i]);
+		//CREATE WORLD VIEW WEB
+		function generateWorldWeb() {
+			NUMBER_OF_LOADED_LOCATIONS++;
+			if (NUMBER_OF_LOADED_LOCATIONS == NUMBER_OF_LOCATIONS) {
+				var WorldWebMat = new THREE.LineBasicMaterial({color: 0xff9000, transparent: true, opacity: 1, linewidth: 5}); //WebGL hates linewidth!
+				var WorldWebGeo = new THREE.Geometry();
+				for (var i=0; i<LOCATION.length; i++) {
+					WorldWebGeo.vertices.push(LOCATION[i].Position);
+					for (var x=0; x<LOCATION.length; x++) {
+						if (x != i) {
+							WorldWebGeo.vertices.push(LOCATION[x].Position);
+						}
+					}
 				}
+				var WorldWeb = new THREE.Line(WorldWebGeo, WorldWebMat);
+				WorldWeb.name = "ARTSTATION_WorldViewWeb";
+				viewer.scene.scene.add(WorldWeb);
 			}
-			WORLD_VIEW_WEB_GEOMETRY.vertices.push(position);
-			var WORLD_VIEW_WEB = new THREE.Line(WORLD_VIEW_WEB_GEOMETRY, WORLD_VIEW_WEB_MATERIAL);
-			WORLD_VIEW_WEB.name = "ARTSTATION_WorldViewWeb";
-			viewer.scene.scene.add(WORLD_VIEW_WEB);
 		}
 
+		//ZOOM IN TO CURRENT VIDEO
+		var VIDEO_DOLLY_ZOOM_IN = null;
+		function videoZoomIn() {
+			for (var i = 0; i < VIDEO.length; i++) {
+				if (VIDEO[i].LockCamera == true) {
+					var video_id = i;
+					VIDEO_DOLLY_ZOOM_IN = setInterval(function(){
+						if (VIDEO_DOLLY_COUNTER[0] <= 70) {
+							VIDEO_DOLLY_COUNTER[0]++;
+							VIDEO_DOLLY_COUNTER[1]--;
+							VIDEO[video_id].VideoCamera.position.z -= 0.1;
+						}
+					}, 1);
+				}
+			}
+		}
 
+		//ZOOM OUT TO CURRENT VIDEO
+		var VIDEO_DOLLY_ZOOM_OUT = null;
+		function videoZoomOut() {
+			for (var i = 0; i < VIDEO.length; i++) {
+				if (VIDEO[i].LockCamera == true) {
+					var video_id = i;
+					VIDEO_DOLLY_ZOOM_OUT = setInterval(function(){
+						if (VIDEO_DOLLY_COUNTER[1] <= 35) {
+							VIDEO_DOLLY_COUNTER[0]--;
+							VIDEO_DOLLY_COUNTER[1]++;
+							VIDEO[video_id].VideoCamera.position.z += 0.1;
+						}
+					}, 1);
+				}
+			}
+		}
+
+		//STOP DOLLY ZOOM
+		function stopVideoZoom() {
+			clearInterval(VIDEO_DOLLY_ZOOM_IN);
+			clearInterval(VIDEO_DOLLY_ZOOM_OUT);
+		}
 
 
 
