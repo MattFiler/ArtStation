@@ -163,6 +163,7 @@
 	<script src="SCRIPTS/jquery-ui/jquery-ui.min.js"></script>
 	<script src="SCRIPTS/three.js/build/three.js"></script>
     <script src="SCRIPTS/three.js/GLTFLoader.js"></script>
+    <script src="SCRIPTS/three.js/THREE.MeshLine.js"></script>
     <!--<script src="SCRIPTS/three.js/CSS3DRenderer.js"></script>-->
 	<script src="SCRIPTS/other/BinaryHeap.js"></script>
 	<script src="SCRIPTS/tween/Tween.js"></script>
@@ -278,6 +279,7 @@
 		var LOCATION_INFO = [];
 		var DOLLY_COUNTER = [0,0];
 		var VIDEO_DOLLY_COUNTER = [0,0];
+		var CAMERA_SAVE = null; //This is set after defining viewer
 
 		//DEFINE WORLD STATES
 		var IN_WORLDVIEW = 0; //Using slow drag to look around controls
@@ -323,6 +325,10 @@
 		viewer.useHQ = OPTIMISATION_UseHQ;
 		viewer.setMinNodeSize(OPTIMISATION_MinNodeSize);
 		console.log("Optimisation result:\nPOINT BUDGET - " + OPTIMISATION_PointBudget + "\nMIN NODE SIZE - " + OPTIMISATION_MinNodeSize + "\nSHOULD USE HQ - " + OPTIMISATION_UseHQ);
+
+		//Instanciate camera saving
+		CAMERA_SAVE = viewer.scene.getActiveCamera();
+		//console.log(CAMERA_SAVE);
 
 		//UPDATE CONTROL LIST
 		if (device.mobile() != null) {
@@ -509,7 +515,14 @@
 					let pRight  = new THREE.Vector3(600, 0, 0).applyMatrix4(camera.matrixWorld);
 					let pUp		 = new THREE.Vector3(0, 600, 0).applyMatrix4(camera.matrixWorld);
 					let pTarget = viewer.scene.view.getPivot();
-					//console.log(pTarget);
+
+					/*
+					console.log(pPos);
+					console.log(pRight);
+					console.log(pUp);
+					console.log(pTarget);
+					console.log("-----------------");
+					*/
 
 					let toCes = (pos) => {
 						let xy = [pos.x, pos.y];
@@ -529,16 +542,6 @@
 
 					cDir = Cesium.Cartesian3.normalize(cDir, new Cesium.Cartesian3());
 					cUp = Cesium.Cartesian3.normalize(cUp, new Cesium.Cartesian3());
-
-					//Attempt at a cesium fix, WIP
-					/*
-					var newDir = new THREE.Vector3();
-					viewer.scene.getActiveCamera().getWorldDirection(newDir);
-					cDir.x = newDir.x;
-					cDir.y = newDir.y;
-					cDir.z = newDir.z;
-					*/
-					//console.log(cDir);
 
 					cesiumViewer.camera.setView({
 						destination : cPos,
@@ -561,10 +564,6 @@
 				}
 				
 			}
-
-			//cesiumViewer.camera.position = viewer.scene.getActiveCamera().position;
-			//cesiumViewer.camera.rotation = viewer.scene.getActiveCamera().rotation;
-			//cesiumViewer.camera.up = viewer.scene.getActiveCamera().up;
 
 			if (USE_CESIUM) {
 				cesiumViewer.render();
@@ -891,7 +890,7 @@
 		var controls = viewer.getControls(viewer.scene.view.navigationMode);
 		function handleClickInput(position) {
 			//Move to environment depending on input location
-			if (WORLD_STATE == IN_WORLDVIEW) {
+			if (WORLD_STATE == IN_WORLDVIEW && !controls.isTransitioning) {
 				//Get mouse/touch position
 		        mouse.x = position[0];
 		        mouse.y = position[1];
@@ -1018,7 +1017,7 @@
 				StateChangeUI(UI_SHOW_ENVIRONMENT);
 				for (var i=0; i<viewer.scene.scene.children.length; i++) {
 					if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
-						viewer.scene.scene.children[i].material.opacity = 0;
+						viewer.scene.scene.children[i].visible = false;
 					}
 				}
 			} 
@@ -1027,7 +1026,7 @@
 				INFO_POPUP_IS_HIDDEN = false;
 				for (var i=0; i<viewer.scene.scene.children.length; i++) {
 					if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
-						viewer.scene.scene.children[i].material.opacity = 1;
+						viewer.scene.scene.children[i].visible = true;
 					}
 				}
 			}
@@ -1244,6 +1243,9 @@
 	        	//Position camera
 			    VIDEO[video_id].TransitionCamera.position.copy(viewer.scene.getActiveCamera().position);
 				VIDEO[video_id].TransitionCamera.rotation.copy(viewer.scene.getActiveCamera().rotation);
+
+				//Save camera config
+				CAMERA_SAVE = viewer.scene.getActiveCamera();
 			}
 			else
 			{
@@ -1257,7 +1259,7 @@
 
             	//Set desired position/rotation
             	CAMERA_POSITION.copy(viewer.scene.cameraP.position); //viewer.scene.cameraP is the getActiveCamera for potree
-				CAMERA_ROTATION.copy(viewer.scene.cameraP.rotation);
+				CAMERA_ROTATION.copy(viewer.scene.cameraP.rotation); //CAMERA_SAVE added 10/08, ineffective though
 
 				//Update matrices for world position
 				VIDEO[video_id].VideoParent.updateMatrixWorld();
@@ -1274,14 +1276,18 @@
 			TRACKING_CAMERA_IS_ENABLED = true;
 
 			//Move camera to desired position
-			var TRANSITION_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_id].TransitionCamera.position).to({x: CAMERA_POSITION.x, y: CAMERA_POSITION.y, z: CAMERA_POSITION.z}, speedIn+speedOut+speedDelay);
-			var TRANSITION_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_id].TransitionCamera.rotation).to({x: CAMERA_ROTATION.x, y: CAMERA_ROTATION.y, z: CAMERA_ROTATION.z}, speedIn+speedOut+speedDelay);
+			var TRANSITION_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_id].TransitionCamera.position).to({x: CAMERA_POSITION.x, y: CAMERA_POSITION.y, z: CAMERA_POSITION.z}, speedIn+speedOut+speedDelay); //alt viewer.scene.getActiveCamera().position
+			var TRANSITION_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_id].TransitionCamera.rotation).to({x: CAMERA_ROTATION.x, y: CAMERA_ROTATION.y, z: CAMERA_ROTATION.z}, speedIn+speedOut+speedDelay); //alt viewer.scene.getActiveCamera().rotation
 			TRANSITION_TWEEN_POSITION.onStart(function(){
 				if (isEnteringVideo) { StateChangeUI(UI_HIDE_ENVIRONMENT); } else { StateChangeUI(UI_HIDE_VIDEO); }
 				TRANSITION_TWEEN_ROTATION.start();
 			});
 			TRANSITION_TWEEN_POSITION.onComplete(function(){
 				if (isEnteringVideo) { StateChangeUI(UI_SHOW_VIDEO); } else { StateChangeUI(UI_SHOW_ENVIRONMENT); }
+				//viewer.scene.getActiveCamera().parent = VIDEO[video_id].VideoMesh;
+				//viewer.scene.getActiveCamera().position.x = 0;
+				//viewer.scene.getActiveCamera().position.y = 0;
+				//viewer.scene.getActiveCamera().position.z = 0;
 				callback();
 			});
 			TRANSITION_TWEEN_POSITION.start();
@@ -1337,7 +1343,8 @@
 		function generateWorldWeb() {
 			NUMBER_OF_LOADED_LOCATIONS++;
 			if (NUMBER_OF_LOADED_LOCATIONS == NUMBER_OF_LOCATIONS) {
-				var WorldWebMat = new THREE.LineBasicMaterial({color: 0xff9000, transparent: true, opacity: 1, linewidth: 5}); //WebGL hates linewidth!
+				//var WorldWebMat = new THREE.LineBasicMaterial({color: 0xff9000, transparent: true, opacity: 1, linewidth: 5}); //WebGL hates linewidth!
+				var WorldWebMat = new MeshLineMaterial({color: new THREE.Color('#ff9000'), sizeAttenuation: false, lineWidth: 15, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight)});
 				var WorldWebGeo = new THREE.Geometry();
 				for (var i=0; i<LOCATION.length; i++) {
 					WorldWebGeo.vertices.push(LOCATION[i].Position);
@@ -1347,8 +1354,12 @@
 						}
 					}
 				}
-				var WorldWeb = new THREE.Line(WorldWebGeo, WorldWebMat);
+				//var WorldWeb = new THREE.Line(WorldWebGeo, WorldWebMat);
+				var WorldWebMesh = new MeshLine();
+				WorldWebMesh.setGeometry(WorldWebGeo);
+				var WorldWeb = new THREE.Mesh(WorldWebMesh.geometry, WorldWebMat);
 				WorldWeb.name = "ARTSTATION_WorldViewWeb";
+				WorldWeb.position.z += 50;
 				viewer.scene.scene.add(WorldWeb);
 			}
 		}

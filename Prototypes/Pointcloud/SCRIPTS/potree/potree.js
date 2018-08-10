@@ -15064,7 +15064,7 @@ void main() {
 			let drag = (e) => {
 				//MFILER-090718 START: Disable panning on mobile for now, this needs to be sorted (TODO)
 				if (this.currentDevice.mobile() != null && this.worldViewCameraConfig) { //MFILER-260718: Re-enabling, but only when out of world view.
-					//return;
+					//return; - MFILER-090818: Re-enabled panning with fix.
 				}
 				//MFILER-090718 END
 				if (!this.isTransitioning) { //MFILER-050718
@@ -22689,7 +22689,13 @@ ENDSEC
 			this.dispatchEvent({'type': 'length_unit_changed', 'viewer': this, value: value});
 		}
 
-		zoomTo(node, factor, animationDuration = 0){
+		zoomTo(node, factor, animationDuration = 0, shouldFreezeControls=true){
+			//MFILER-100818 START
+			try {
+				this.controls.isTransitioning = true;
+			} catch (e) {}
+			//MFILER-100818 END
+
 			let view = this.scene.view;
 
 			let camera = this.scene.cameraP.clone();
@@ -22728,6 +22734,13 @@ ENDSEC
 				tween.onUpdate(() => {
 					view.position.copy(pos);
 				});
+				//MFILER-100818 START
+				tween.onComplete(() => {
+					try {
+						this.controls.isTransitioning = false;
+					} catch (e) {}
+				});
+				//MFILER-100818 END
 
 				tween.start();
 			}
