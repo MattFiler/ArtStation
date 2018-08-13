@@ -1,3 +1,139 @@
 /*
-	ARTSTATION code will go here.
+	ARTSTATION
+	Created by Matt Filer
 */
+
+video, #ARTSTATION_GoogleMap {
+	display:none;
+}
+.potree_container {
+	z-index: 0;
+	position: absolute; 
+	width: 100%; 
+	height: 100%; 
+	left: 0px; 
+	top: 0px; 
+}
+#cesiumContainer {
+	position: absolute;
+	width: 100%; 
+	height: 100%; 
+	background-color:black;
+}
+.cesium-widget-credits {
+	display: none;
+}
+.ARTSTATION_ControlBtn {
+	position:absolute;
+	bottom:-1px;
+	z-index:900;
+	outline: none !important;
+	cursor: pointer;
+	font-size: 30px;
+	text-align:center;
+	width: 70px;
+	height: 70px;
+	display: none;
+	margin: 30px;
+}
+.ARTSTATION_LeftBtn {
+	left: -1px;
+}
+.DollyZoomOut, .ARTSTATION_PauseBtn, .ARTSTATION_VideoZoomOut {
+	margin-left: 110px;
+}
+.ARTSTATION_VideoTimer {
+	margin-left: 205px;
+	width: calc(100% - 331px);
+	cursor: default !important;
+	pointer-events: none !important;
+}
+.ARTSTATION_RightBtn {
+	right: -1px;
+}
+@media (min-width: 769px) {
+	.MobileOnly {
+		display: none !important;
+	}
+}
+@media (max-width: 768px) {
+	.DesktopOnly {
+		display: none !important;
+	}
+	.DollyZoomOut, .ARTSTATION_PauseBtn, .ARTSTATION_VideoZoomOut {
+		margin-left: 110px;
+	}
+	.ARTSTATION_VideoTimer {
+		margin-left: 194px;
+		width: calc(100% - 222px);
+	}
+	.ARTSTATION_RightBtn {
+		top: -1px !important;
+		bottom: auto !important;
+		z-index: 998;
+	}
+	.ARTSTATION_VideoProgressText {
+		bottom: 38px !important;
+		font-size: 20px;
+	}
+}
+.ARTSTATION_VideoProgressText {
+	position:relative;
+	bottom: 45px;
+	color: #363636 !important;
+}
+.modal-backdrop {
+	z-index: 950;
+}
+#ARTSTATION_ControlPanel {
+	z-index: 998;
+}
+.annotation-label {
+	text-transform: capitalize;
+}
+.annotation {
+	margin-top: -20px !important;
+	cursor: default !important;
+}
+noscript {
+	position: absolute;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	right: 0;
+	z-index: 999;
+}
+.ARTSTATION_JavaScriptWarning {
+	color: white;
+	display: flex;
+	-ms-flex-align: center;
+	align-items: center;
+	width: 100%;
+	margin-top: calc(100vh / 2);
+	padding: 0 15px;
+}
+.ARTSTATION_JavaScriptWarningText {
+	text-align: center; 
+	width: 100%;
+}
+.ARTSTATION_VideoTitle {
+	position:absolute;
+	left:0;
+	right:0;
+	top: 30px;
+	text-align: center;
+	color: white;
+	text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;  
+	z-index: 997;
+	font-size: 35px;
+	display:none;
+}
+.modal-header {
+	background: url("http://assets.artstation.mattfiler.co.uk/IMAGES/celtic.jpg") repeat;
+	color: white !important;
+	text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;  
+}
+.close {
+	color: white !important;
+	text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+}
