@@ -28,9 +28,9 @@ $(document).ready(function() {
 	var DOLLY_COUNTER = [0,0];
 	var VIDEO_DOLLY_COUNTER = [0,0];
 	var CAMERA_SAVE = null; //This is set after defining viewer
-	var MAP_PARENT = new THREE.Group();
-	MAP_PARENT.name = "ARTSTATION_Map";
-	MAP_PARENT.position.set(760,-760,0);
+	var WORLD_VIEW_MAP = new THREE.Group();
+	WORLD_VIEW_MAP.name = "ARTSTATION_WorldViewMap";
+	var MAP_TILES = [{x: 0, y: 0}];
 
 	//DEFINE WORLD STATES
 	var IN_WORLDVIEW = 0; //Using slow drag to look around controls
@@ -45,6 +45,21 @@ $(document).ready(function() {
 	var UI_SHOW_VIDEO = 2;
 	var UI_HIDE_VIDEO = 3;
 	var UI_RESET = 4;
+
+	//DEFINE MAP DETAIL LEVELS (tile density)
+	//These will also need to be updated in "createMapAround" if they are modified!
+	var MAP_DETAIL_HIGH = 18; //Environment View
+	var MAP_DETAIL_MEDIUM = 16; //Currently Unused
+	var MAP_DETAIL_LOW = 14; //World View
+
+	//DEFINE MAP QUALITY LEVELS (tile resolution)
+	var MAP_QUALITY_EXTRA = 3;
+	var MAP_QUALITY_HIGH = 2;
+	var MAP_QUALITY_MEDIUM = 1.3;
+	var MAP_QUALITY_STANDARD = 0;
+
+	//DEFINE MAP TYPE
+	var MAP_TYPE = {0: "osm-intl"};
 
 	//DEFINE POTREE VIEWER
 	window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
@@ -352,13 +367,14 @@ $(document).ready(function() {
 			        Name: locationName,
 			        UUID: pointcloud.uuid,
 			        Z_Offset: zOffset,
-			        Position: center
+			        Position: center,
+			        LocationGPS: ConvertToCoordinates(center.x, center.y)
 			    };
 			    var location_data_length = LOCATION.push(location_data);
 
-			    //Generate map around location
+			    //Generate world view map around location
 			    if (!USE_CESIUM) {
-					createMapAround(ConvertToCoordinates(center.x, center.y));
+					createMapForLocation(location_data_length - 1);
 			    }
 
 			    //Add location name annotation
@@ -398,13 +414,14 @@ $(document).ready(function() {
 		        Name: locationName,
 		        UUID: null,
 		        Z_Offset: zOffset,
-		        Position: new THREE.Vector3(coords[0], coords[1], zOffset)
+		        Position: new THREE.Vector3(coords[0], coords[1], zOffset),
+			    LocationGPS: GPS
 		    };
 		    var location_data_length = LOCATION.push(location_data);
 
 		    //Generate map around location
 			if (!USE_CESIUM) {
-				createMapAround(ConvertToCoordinates(coords[0], coords[1]));
+				createMapForLocation(location_data_length - 1);
 			}
 
 	    	//Add location name annotation
@@ -802,8 +819,8 @@ $(document).ready(function() {
 		        	controls.worldViewCameraConfig = false;
 					setState(IN_ENVIRONMENT);
 
-					//Move map back up (temp fix)
-					MAP_PARENT.position.z = 49;
+					//Swap maps
+					enterEnvMapMode(true);
 
 					//Setup videos
 					for (var i = 0; i < VIDEO.length; i++) {
@@ -876,8 +893,8 @@ $(document).ready(function() {
 			//Fade out all video markers
 			ToggleMarkerVisibility(false, true);
 
-			//Move map back down (temp fix)
-			MAP_PARENT.position.z = 0;
+			//Swap maps
+			enterEnvMapMode(false);
 
 			//Fade annotations back in and configure controls for world view
 			$(".annotation").fadeIn(600, "swing", function() { 
@@ -1223,10 +1240,6 @@ $(document).ready(function() {
 		});
 		TRANSITION_TWEEN_POSITION.onComplete(function(){
 			if (isEnteringVideo) { StateChangeUI(UI_SHOW_VIDEO); } else { StateChangeUI(UI_SHOW_ENVIRONMENT); }
-			//viewer.scene.getActiveCamera().parent = VIDEO[video_id].VideoMesh;
-			//viewer.scene.getActiveCamera().position.x = 0;
-			//viewer.scene.getActiveCamera().position.y = 0;
-			//viewer.scene.getActiveCamera().position.z = 0;
 			callback();
 		});
 		TRANSITION_TWEEN_POSITION.start();
@@ -1277,6 +1290,19 @@ $(document).ready(function() {
 		--
 	*/
 
+	//SWITCH TO/FROM ENVIRONMENT MAP MODE
+	function enterEnvMapMode(shouldShow) {
+		var controls = viewer.getControls(viewer.scene.view.navigationMode);
+		for (var i=0; i<viewer.scene.scene.children.length;i++) {
+			if (viewer.scene.scene.children[i].name == "ARTSTATION_EnvViewMap_"+controls.clickedEnvironmentUUID) {
+				viewer.scene.scene.children[i].visible = shouldShow;
+			}
+			else if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewMap") {
+				//viewer.scene.scene.children[i].visible = !shouldShow;
+			}
+		}
+	}
+
 	//OPENSTREETMAP LONGITUDE TO TILE
 	function lon2tile(lon,zoom) { 
 		return ((lon+180)/360*Math.pow(2,zoom)); 
@@ -1296,7 +1322,7 @@ $(document).ready(function() {
 	}
 
 	//GENERATE TILE LIST
-	function tileList(gps, zoom, radius) { //Must be called with an even radius number, 2 or greater!
+	function tileList(gps, zoom, radius, quality, type) { //Must be called with an even radius number, 2 or greater!
 		var URLs = [];
 
 		//Get tile "X,Y" for the online standard map tile server with given GPS
@@ -1305,22 +1331,41 @@ $(document).ready(function() {
 
 		for (var lat_x=-(radius/2);lat_x<=radius;lat_x++) {
 			for (var lon_x=-(radius/2);lon_x<=radius;lon_x++) {
+				//Verify we haven't already added this one
+				var tile_x = lon_tile+lon_x;
+				var tile_y = lat_tile+lat_x;
+				for (var i=0; i<MAP_TILES.length; i++) {
+					if (MAP_TILES[i].x == tile_x && MAP_TILES[i].y == tile_y) {
+						continue;
+					}
+				}
+
 				//Work out the GPS of the map tile (for placing in world)
 				var lat_tile_coords = tile2lat(lat_tile+lat_x, zoom);
 				var lon_tile_coords = tile2lon(lon_tile+lon_x, zoom);
                 var tile_pos = ConvertToUTM(lat_tile_coords, lon_tile_coords);
 
+                //Generate URL (new optional quality param)
+                var tile_url = "https://maps.wikimedia.org/"+type+"/"+zoom+"/"+(lon_tile+lon_x)+"/"+(lat_tile+lat_x)+".png";
+                if (quality != 0) {
+                	//Supports 1.3, 1.5, 2, 2.6, 3 times the original resolution
+                	tile_url = "https://maps.wikimedia.org/"+type+"/"+zoom+"/"+(lon_tile+lon_x)+"/"+(lat_tile+lat_x)+"@"+quality+"x.png";
+                }
+
                 //Save tile info to array
 				URLs.push({
-					TileURL: "https://maps.wikimedia.org/osm-intl/"+zoom+"/"+(lon_tile+lon_x)+"/"+(lat_tile+lat_x)+".png",
+					TileURL: tile_url,
 					TileLat: lat_tile_coords,
 					TileLon: lon_tile_coords,
 					TileWorldX: tile_pos[0],
 					TileWorldY: tile_pos[1],
-					TileUrlX: lon_tile+lon_x,
-					TileUrlY: lat_tile+lat_x,
+					TileUrlX: tile_x,
+					TileUrlY: tile_y,
 					TileUrlZ: zoom
 				});
+
+				//Remember we added this tile
+				MAP_TILES.push({x:tile_x, y:tile_y});
 			}
 		}
 
@@ -1328,13 +1373,40 @@ $(document).ready(function() {
 	}
 
 	//CREATE MAP AROUND A GPS POSITION
-	function createMapAround(gps=[0,0], zoom=14, tile_radius=10, tile_size=1530) {
+	function createMapAround(gps=[0,0], zoom=14, mapType="osm-intl") {
+		//Map object to return
+		var thisMap = new THREE.Group();
+		thisMap.name = "ARTSTATION_BespokeMapGroup"; //Overwriten on env maps
+
+		//Tile "zoom-specific" configs
+		//As defined above, these are LOW (14), MEDIUM (16), HIGH (18) - please update here if they are changed above.
+		var tile = {
+			14: {
+				size: 1530, 
+				radius: 10,
+				mapOffset: new THREE.Vector3(760,-760, 0),
+				quality: MAP_QUALITY_STANDARD
+			},
+			16: {
+				size: 383, 
+				radius: 10,
+				mapOffset: new THREE.Vector3(200,-190, 30),
+				quality: MAP_QUALITY_MEDIUM
+			},
+			18: {
+				size: 96, 
+				radius: 14,
+				mapOffset: new THREE.Vector3(50,-50, 49),
+				quality: MAP_QUALITY_HIGH //Perhaps use EXTRA on good bandwidth?
+			}
+		};
+
 		//Get all map tiles for requested location
-		var mapList = tileList(gps, zoom, tile_radius);
+		var mapList = tileList(gps, zoom, tile[zoom].radius, tile[zoom].quality, mapType);
 
 		//Create all map tile planes
 		for (var i=0; i<mapList.length; i++) {
-			var map_plane = new THREE.PlaneGeometry(tile_size, tile_size, 1, 1);
+			var map_plane = new THREE.PlaneGeometry(tile[zoom].size, tile[zoom].size, 1, 1);
 			var map_texture = new THREE.TextureLoader().load(mapList[i].TileURL);
 			map_texture.crossOrigin = 'anonymous';
 			map_texture.wrapS = THREE.RepeatWrapping;
@@ -1345,15 +1417,34 @@ $(document).ready(function() {
 			map_plane_mesh.name="ARTSTATION_MapTile";
 			map_plane_mesh.position.set(mapList[i].TileWorldX, mapList[i].TileWorldY, 0);
 			map_plane_mesh.material.side = THREE.DoubleSide;
-			MAP_PARENT.add(map_plane_mesh);
+			thisMap.add(map_plane_mesh);
 		}
 
-		//Add map to scene
+		//Apply appropriate zoom offset and return
+		thisMap.position.x = tile[zoom].mapOffset.x;
+		thisMap.position.y = tile[zoom].mapOffset.y;
+		thisMap.position.z = tile[zoom].mapOffset.z;
+		return thisMap;
+	}
+
+	function createMapForLocation(location_id) {
+		if (LOCATION[location_id].UUID != null) {
+			//Generate "environment view" map data for pointclouds
+			var envViewMap = createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_HIGH, MAP_TYPE[0]);
+			envViewMap.name = "ARTSTATION_EnvViewMap_"+LOCATION[location_id].UUID;
+			envViewMap.visible = false; //only visible when location clicked
+			viewer.scene.scene.add(envViewMap);
+		}
+
+		//Generate "world view" map data for all
+		WORLD_VIEW_MAP.add(createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_LOW, MAP_TYPE[0]));
+
+		//Update the "world view" map
 		for (var i=0; i<viewer.scene.scene.children.length; i++) {
-			if (viewer.scene.scene.children[i].name == "ARTSTATION_Map") {
+			if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewMap") {
 				viewer.scene.scene.remove(viewer.scene.scene.children[i]);
 			}
 		}
-		viewer.scene.scene.add(MAP_PARENT);
+		viewer.scene.scene.add(WORLD_VIEW_MAP);
 	}
 });
