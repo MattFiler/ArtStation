@@ -266,6 +266,10 @@ $(document).ready(function() {
 	function loop(timestamp){
 		requestAnimationFrame(loop);
 
+		if (currentDevice == null) {
+			currentDevice = new MobileDetect(window.navigator.userAgent)
+		}
+
 		viewer.update(viewer.clock.getDelta(), timestamp);
 
 		viewer.render();
@@ -372,7 +376,7 @@ $(document).ready(function() {
 			    };
 			    var location_data_length = LOCATION.push(location_data);
 
-			    //Generate world view map around location
+			    //Generate maps around location
 			    if (!USE_CESIUM) {
 					createMapForLocation(location_data_length - 1);
 			    }
@@ -525,7 +529,7 @@ $(document).ready(function() {
 	    video_parent.add(video_plane_mesh);
 
 	    //Create tracking camera entity, child of video plane
-	    var tracking_camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000); 
+	    var tracking_camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, Infinity); //Infinity is a placeholder
 	    tracking_camera.position.x = 0;
 	    tracking_camera.position.y = 0;
 	    if (device.mobile() == null) { tracking_camera.position.z = DEFAULT_CAMERA_OFFSET_DESKTOP; } else { tracking_camera.position.z = DEFAULT_CAMERA_OFFSET_MOBILE; } //mobile/desktop video offsets
@@ -533,7 +537,7 @@ $(document).ready(function() {
 	    video_plane_mesh.add(tracking_camera);
 
 	    //Create camera transition entity to replace black screen
-	    var transition_camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000);
+	    var transition_camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, Infinity); //Again, not actually infinite
 	    tracking_camera.name = "ARTSTATION_TransitionCamera";
 	    viewer.scene.scene.add(transition_camera);
 
@@ -1295,7 +1299,18 @@ $(document).ready(function() {
 		var controls = viewer.getControls(viewer.scene.view.navigationMode);
 		for (var i=0; i<viewer.scene.scene.children.length;i++) {
 			if (viewer.scene.scene.children[i].name == "ARTSTATION_EnvViewMap_"+controls.clickedEnvironmentUUID) {
-				viewer.scene.scene.children[i].visible = shouldShow;
+				if (shouldShow) { viewer.scene.scene.children[i].visible = true; }
+				for (var x=0; x<viewer.scene.scene.children[i].children.length; x++) {
+					if (shouldShow) {
+						new TWEEN.Tween(viewer.scene.scene.children[i].children[x].material).to({opacity: 1}, 500).start();
+					}
+					else
+					{
+						new TWEEN.Tween(viewer.scene.scene.children[i].children[x].material).to({opacity: 0}, 500).start();
+					}
+				}
+				if (!shouldShow) { viewer.scene.scene.children[i].visible = false; }
+				//viewer.scene.scene.children[i].visible = shouldShow;
 			}
 			else if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewMap") {
 				//viewer.scene.scene.children[i].visible = !shouldShow;
@@ -1322,15 +1337,20 @@ $(document).ready(function() {
 	}
 
 	//GENERATE TILE LIST
-	function tileList(gps, zoom, radius, quality, type) { //Must be called with an even radius number, 2 or greater!
+	function tileList(gps, zoom, radius, quality, type) {
 		var URLs = [];
+
+		//We need an even radius > 2
+		if (radius%2 != 0 || radius<2) {
+			return URLs;
+		}
 
 		//Get tile "X,Y" for the online standard map tile server with given GPS
 		var lat_tile = Math.floor(lat2tile(gps[0], zoom));
 		var lon_tile = Math.floor(lon2tile(gps[1], zoom));
 
-		for (var lat_x=-(radius/2);lat_x<=radius;lat_x++) {
-			for (var lon_x=-(radius/2);lon_x<=radius;lon_x++) {
+		for (var lat_x=-(radius/2);lat_x<=(radius/2);lat_x++) {
+			for (var lon_x=-(radius/2);lon_x<=(radius/2);lon_x++) {
 				//Verify we haven't already added this one
 				var tile_x = lon_tile+lon_x;
 				var tile_y = lat_tile+lat_x;
@@ -1383,23 +1403,32 @@ $(document).ready(function() {
 		var tile = {
 			14: {
 				size: 1530, 
-				radius: 10,
+				radius: 36, //caps out at 20 on mobile
 				mapOffset: new THREE.Vector3(760,-760, 0),
-				quality: MAP_QUALITY_STANDARD
+				quality: MAP_QUALITY_STANDARD,
+				defaultOpacity: 1
 			},
 			16: {
 				size: 383, 
 				radius: 10,
 				mapOffset: new THREE.Vector3(200,-190, 30),
-				quality: MAP_QUALITY_MEDIUM
+				quality: MAP_QUALITY_MEDIUM,
+				defaultOpacity: 0
 			},
 			18: {
 				size: 96, 
-				radius: 14,
+				radius: 10,
 				mapOffset: new THREE.Vector3(50,-50, 49),
-				quality: MAP_QUALITY_HIGH //Perhaps use EXTRA on good bandwidth?
+				quality: MAP_QUALITY_EXTRA, //caps out at MEDIUM on mobile
+				defaultOpacity: 0
 			}
 		};
+		if (tile[zoom].quality > MAP_QUALITY_MEDIUM && !OPTIMISATION_UseHQ) {
+			tile[zoom].quality = MAP_QUALITY_MEDIUM;
+		}
+		if (tile[zoom].radius > 20 && !OPTIMISATION_UseHQ) {
+			tile[zoom].radius = 20;
+		}
 
 		//Get all map tiles for requested location
 		var mapList = tileList(gps, zoom, tile[zoom].radius, tile[zoom].quality, mapType);
@@ -1412,7 +1441,7 @@ $(document).ready(function() {
 			map_texture.wrapS = THREE.RepeatWrapping;
 			map_texture.wrapT = THREE.RepeatWrapping;
 			map_texture.repeat.set(1, 1);
-			var map_material = new THREE.MeshLambertMaterial({color: 0xffffff, map: map_texture, transparent: true, opacity: 1});
+			var map_material = new THREE.MeshBasicMaterial({color: 0xffffff, map: map_texture, transparent: true, opacity: tile[zoom].defaultOpacity, alphaTest: 0.5});
 			var map_plane_mesh = new THREE.Mesh(map_plane, map_material);
 			map_plane_mesh.name="ARTSTATION_MapTile";
 			map_plane_mesh.position.set(mapList[i].TileWorldX, mapList[i].TileWorldY, 0);
@@ -1432,7 +1461,7 @@ $(document).ready(function() {
 			//Generate "environment view" map data for pointclouds
 			var envViewMap = createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_HIGH, MAP_TYPE[0]);
 			envViewMap.name = "ARTSTATION_EnvViewMap_"+LOCATION[location_id].UUID;
-			envViewMap.visible = false; //only visible when location clicked
+			envViewMap.visible = false; //only visible when location clicked (opacity too!)
 			viewer.scene.scene.add(envViewMap);
 		}
 

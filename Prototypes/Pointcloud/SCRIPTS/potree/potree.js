@@ -24,6 +24,9 @@ LOCAL_DATA_STORE.setDriver(localforage.INDEXEDDB);
 var TRACKING_CAMERA_IS_ENABLED = false;
 var TRACKING_CAMERA_OBJECT = null;
 
+//Get current device
+var currentDevice = null;
+
 //Data debugging (not totally accurate now IndexedDB is used)
 var CONTENTDEBUG__ASSET_ARRAY = [];
 var CONTENTDEBUG__WASTED_ASSET_COUNT = 0;
@@ -14359,7 +14362,11 @@ void main() {
 			// render skybox
 			if(viewer.background === "skybox"){
 				viewer.renderer.clear(true, true, false);
-				viewer.skybox.camera.rotation.copy(viewer.scene.cameraP.rotation);
+				//MFILER-150818 START
+				viewer.scene.getActiveCamera().updateMatrixWorld();
+				viewer.skybox.camera.rotation.setFromQuaternion(viewer.scene.getActiveCamera().getWorldQuaternion());
+				//viewer.skybox.camera.rotation.copy(viewer.scene.cameraP.rotation);
+				//MFILER-150818 END
 				viewer.skybox.camera.fov = viewer.scene.cameraP.fov;
 				viewer.skybox.camera.aspect = viewer.scene.cameraP.aspect;
 				viewer.skybox.camera.updateProjectionMatrix();
@@ -14591,7 +14598,11 @@ void main() {
 			if(viewer.background === "skybox"){
 				viewer.renderer.setClearColor(0x000000, 0);
 				viewer.renderer.clear();
-				viewer.skybox.camera.rotation.copy(viewer.scene.cameraP.rotation);
+				//MFILER-150818 START
+				viewer.scene.getActiveCamera().updateMatrixWorld();
+				viewer.skybox.camera.rotation.setFromQuaternion(viewer.scene.getActiveCamera().getWorldQuaternion());
+				//viewer.skybox.camera.rotation.copy(viewer.scene.cameraP.rotation);
+				//MFILER-150818 END
 				viewer.skybox.camera.fov = viewer.scene.cameraP.fov;
 				viewer.skybox.camera.aspect = viewer.scene.cameraP.aspect;
 				viewer.skybox.camera.updateProjectionMatrix();
@@ -14942,7 +14953,11 @@ void main() {
 			if(viewer.background === "skybox"){
 				viewer.renderer.setClearColor(0x000000, 0);
 				viewer.renderer.clear();
-				viewer.skybox.camera.rotation.copy(viewer.scene.cameraP.rotation);
+				//MFILER-150818 START
+				viewer.scene.getActiveCamera().updateMatrixWorld();
+				viewer.skybox.camera.rotation.setFromQuaternion(viewer.scene.getActiveCamera().getWorldQuaternion());
+				//viewer.skybox.camera.rotation.copy(viewer.scene.cameraP.rotation);
+				//MFILER-150818 END
 				viewer.skybox.camera.fov = viewer.scene.cameraP.fov;
 				viewer.skybox.camera.aspect = viewer.scene.cameraP.aspect;
 				viewer.skybox.camera.updateProjectionMatrix();
@@ -15536,7 +15551,8 @@ void main() {
 			this.sceneBG = new THREE.Scene();
 			this.scenePointCloud = new THREE.Scene();
 
-			this.cameraP = new THREE.PerspectiveCamera(this.fov, 1, 0.1, 1000*1000);
+			this.cameraP = new THREE.PerspectiveCamera(this.fov, 1, 0.1, Infinity); //MFILER-150818: New far value (overwritten later)
+			this.cameraP.name = "ARTSTATION_PotreePerspCam"; //MFILER-150818: Naming camera for use later
 			this.cameraO = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000*1000);
 			this.cameraBG = new THREE.Camera();
 			this.cameraScreenSpace = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
@@ -23461,7 +23477,23 @@ ENDSEC
 					}
 					
 					camera.near = near;
-					camera.far = far;
+					//MFILER-150818 START
+					if (camera.name != "ARTSTATION_PotreePerspCam" && 
+						camera.name != "ARTSTATION_TrackingCamera" && 
+						camera.name != "ARTSTATION_TransitionCamera") {
+						camera.far = far; //Don't apply new far to main cams
+					}
+					else
+					{
+						if (currentDevice.mobile() != null) {
+							camera.far = 20000; //Keep main cams at this far on mobile
+						}
+						else
+						{
+							camera.far = 25000; //Keep main cams at this far on desktop
+						}
+					}
+					//MFILER-150818 END
 				}else{
 					// don't change near and far in this case
 				}
