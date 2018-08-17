@@ -1,0 +1,78 @@
+{
+  "locations": [
+    {
+      "name": "St Thomas Head",
+      "description": "An old MOD base used during the war to develop and test a range of explosives. Before being discontinued it was used for bomb disposal.",
+      "key_points": [
+        "Located in Somerset.", 
+        "Now demolished.", 
+        "Out of service."
+      ],
+      "region": 0,
+      "is_pointcloud": true,
+      "filename": "st_thomas_head",
+      "z_offset": 45,
+      "videos": [
+        {
+          "title": "Out Over The River",
+          "filename": "DJI_0023",
+          "offset": [0,0,0]
+        }
+      ]
+    },
+    {
+      "name": "The Field",
+      "description": "The field is located just off of a model aircraft flight area, a great spot for testing the drone for this application!",
+      "key_points": [
+        "Located in Somerset.", 
+        "Lets you fly model aircraft.", 
+        "Other good stuff."
+      ],
+      "region": 0,
+      "is_pointcloud": true,
+      "filename": "field",
+      "z_offset": 50,
+      "videos": [
+        {
+          "title": "Dead Grass Circle",
+          "filename": "DJI_0003",
+          "offset": [0,0,20]
+        },
+        {
+          "title": "River Tracking Shot",
+          "filename": "DJI_0005",
+          "offset": [0,0,0]
+        },
+        {
+          "title": "Static Spin Shot",
+          "filename": "DJI_0009",
+          "offset": [0,0,15]
+        }
+      ]
+    },
+    {
+      "name": "The Farm",
+      "description": "The farm is located between St Thomas Head and the model aircraft field. No pointcloud data is available.",
+      "key_points": [
+        "Low data location.", 
+        "A farm.", 
+        "Something else."
+      ],
+      "region": 0,
+      "is_pointcloud": false,
+      "gps": [51.385721, -2.854938]
+    },
+    {
+      "name": "Sea Wall",
+      "description": "The sea wall is located near to the shooting range, close to St Thomas Head. It is a location with no pointcloud.",
+      "key_points": [
+        "Low data location.", 
+        "A sea wall.", 
+        "Something else."
+      ],
+      "region": 0,
+      "is_pointcloud": false,
+      "gps": [51.406961, -2.895358]
+    }
+  ]
+}

@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<title>ARTSTATION</title>
+
+	<!-- Third-Party Styles -->
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/bootswatch/bootstrap.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/font-awesome/css/all.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/potree/potree.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/jquery-ui/jquery-ui.min.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/perfect-scrollbar/css/perfect-scrollbar.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/openlayers3/ol.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/spectrum/spectrum.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/jstree/themes/mixed/style.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/Cesium/Widgets/CesiumWidget/CesiumWidget.css">
+
+	<!-- ARTSTATION Styles -->
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css">
+</head>
+
+<body>
+	<!-- Third-Party Scripts -->
+	<script src="SCRIPTS/jquery/jquery-3.1.1.min.js"></script>
+	<script src="SCRIPTS/bootstrap/js/bootstrap.js"></script>
+	<script src="SCRIPTS/localforage/localforage.js"></script>
+	<script src="SCRIPTS/spectrum/spectrum.js"></script>
+	<script src="SCRIPTS/perfect-scrollbar/js/perfect-scrollbar.jquery.js"></script>
+	<script src="SCRIPTS/jquery-ui/jquery-ui.min.js"></script>
+	<script src="SCRIPTS/three.js/build/three.js"></script> <!-- A number of default console logs are disabled. -->
+    <script src="SCRIPTS/three.js/GLTFLoader.js"></script>
+    <script src="SCRIPTS/three.js/THREE.MeshLine.js"></script>
+	<script src="SCRIPTS/other/BinaryHeap.js"></script>
+	<script src="SCRIPTS/tween/Tween.js"></script> <!-- Not standard build of TweenJS. -->
+	<script src="SCRIPTS/d3/d3.js"></script>
+	<script src="SCRIPTS/proj4/proj4.js"></script>
+	<script src="SCRIPTS/openlayers3/ol.js"></script>
+	<script src="SCRIPTS/i18next/i18next.js"></script>
+	<script src="SCRIPTS/jstree/jstree.js"></script>
+	<script src="SCRIPTS/potree/potree.js"></script> <!-- Custom implementation for ARTSTATION. -->
+	<script src="SCRIPTS/plasio/js/laslaz.js"></script>
+	<script src="SCRIPTS/Cesium/Cesium.js"></script>
+	<script src="SCRIPTS/taylorc/geoutm.js"></script> <!-- Custom implementation for ARTSTATION. -->
+	<script src="SCRIPTS/mobile-detect/mobile-detect.js"></script>
+
+	<!-- ARTSTATION Scripts -->
+	<script src="SCRIPTS/ARTSTATION/main.js"></script>
+
+	<!-- ARTSTATION JavaScript Warning -->
+	<noscript>
+		<center>
+			<h1 class="ARTSTATION_JavaScriptWarning">
+				<span class="ARTSTATION_JavaScriptWarningText">Application failed to run - JavaScript must be enabled!</span>
+			</h1>
+		</center>
+	</noscript>
+
+	<!-- ARTSTATION Region Title -->
+	<div class="ARTSTATION_RegionTitle DesktopOnly OnlyInWorldView"></div>
+
+	<!-- ARTSTATION Return To Region List -->
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_ReturnToRegionList OnlyInWorldView">
+		<i class="fas fa-undo"></i>
+	</button>
+
+	<!-- ARTSTATION Location Title -->
+	<div class="ARTSTATION_LocationTitle OnlyInEnvironment DesktopOnly"></div>
+
+	<!-- ARTSTATION Camera Dolly Buttons -->
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomIn OnlyInEnvironment DesktopOnly">
+		<i class="fas fa-search-plus"></i>
+	</button>
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn DollyZoomOut OnlyInEnvironment DesktopOnly">
+		<i class="fas fa-search-minus"></i>
+	</button>
+
+	<!-- ARTSTATION Home Button -->
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_HomeBtn OnlyInEnvironment">
+		<i class="fas fa-home"></i>
+	</button>
+
+	<!-- ARTSTATION Video Title -->
+	<div class="ARTSTATION_VideoTitle OnlyInVideo"></div>
+
+	<!-- ARTSTATION Video Controls -->
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PlayBtn OnlyInVideo">
+		<i class="fas fa-play"></i>
+	</button>
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_PauseBtn OnlyInVideo">
+		<i class="fas fa-pause"></i>
+	</button>
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_TopBtn ARTSTATION_MaximiseBtn OnlyInVideo DesktopOnly">
+		<i class="fas fa-expand-arrows-alt"></i>
+	</button>
+
+	<!-- ARTSTATION Video Controls (DEBUG ONLY!) -->
+	<!--
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoZoomIn OnlyInVideo">
+		<i class="fas fa-plus"></i>
+	</button>
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoZoomOut OnlyInVideo">
+		<i class="fas fa-minus"></i>
+	</button>
+	-->
+
+	<!-- ARTSTATION Video Timer -->
+	<div class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_LeftBtn ARTSTATION_VideoTimer OnlyInVideo progress">
+		<div class="ARTSTATION_VideoProgressBar progress-bar progress-bar-striped progress-bar-animated" style="width:0%; height:100%;"></div>
+		<div class="ARTSTATION_VideoProgressText">
+			<b><span class="ARTSTATION_CurrentVideoTime">0:00</span> / <span class="ARTSTATION_FullVideoTime">0:00</span></b>
+		</div>
+	</div>
+
+	<!-- ARTSTATION Exit Video -->
+	<button class="btn btn-primary ARTSTATION_ControlBtn ARTSTATION_RightBtn ARTSTATION_ExitBtn OnlyInVideo">
+		<i class="fas fa-times"></i>
+	</button>
+
+	<!-- ARTSTATION Controls Popup -->
+	<div class="modal fade" id="ARTSTATION_ControlPanel">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h4 class="modal-title ARTSTATION_RegionName"></h4>
+					<button type="button" class="close ARTSTATION_ClosePopup" data-dismiss="modal">&times;</button>
+				</div>
+				<div class="modal-body">
+					<span class="ARTSTATION_RegionDesc"></span>
+					<hr>
+					<ul class="ARTSTATION_DeviceControls">
+
+					</ul>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-success ARTSTATION_ClosePopup" data-dismiss="modal">OK</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- ARTSTATION Render Area -->
+	<div class="potree_container">
+		<div id="potree_render_area">
+			<div id="cesiumContainer"></div>			
+		</div>
+		<!--<div id="potree_sidebar_container"> </div>-->
+	</div>	
+
+	<script>
+		/* Run ARTSTATION for requested region */
+		$(document).ready(function() {
+			var url_param = window.location.search.substring(1);
+			var param_split = url_param.split("=");
+			ARTSTATION(param_split[1]);
+		});
+	</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "regions": [
+    {
+      "name": "Somerset",
+      "description": "This is a region intended for the demo of ARTSTATION, featuring two pointclouds and two other locations."
+    },
+    {
+      "name": "North Wales",
+      "description": "This region will be in the final project, however has no locations in the current implementation."
+    },
+    {
+      "name": "South Wales",
+      "description": "This region will be in the final project, however has no locations in the current implementation."
+    },
+    {
+      "name": "West Wales",
+      "description": "This region will be in the final project, however has no locations in the current implementation."
+    }
+  ]
+}

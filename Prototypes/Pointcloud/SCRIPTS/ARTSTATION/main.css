@@ -116,7 +116,7 @@ noscript {
 	text-align: center; 
 	width: 100%;
 }
-.ARTSTATION_VideoTitle {
+.ARTSTATION_VideoTitle, .ARTSTATION_LocationTitle, .ARTSTATION_RegionTitle {
 	position:absolute;
 	left:0;
 	right:0;
@@ -128,12 +128,24 @@ noscript {
 	font-size: 35px;
 	display:none;
 }
-.modal-header {
-	background: url("http://assets.artstation.mattfiler.co.uk/IMAGES/celtic.jpg") repeat;
+.modal-header, .ARTSTATION_Intro {
+	background: url("http://assets.artstation.mattfiler.co.uk/IMAGES/celtic.jpg");
+	background-size: cover;
 	color: white !important;
 	text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;  
 }
 .close {
 	color: white !important;
 	text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;
+}
+.DebugOnly {
+	display:none;
+}
+.ARTSTATION_Footer {
+	float:right;
+}
+.ARTSTATION_TopBtn {
+	top: -1px !important;
+	bottom: auto !important;
+	z-index:999;
 }

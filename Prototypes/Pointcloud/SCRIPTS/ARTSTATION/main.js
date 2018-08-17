@@ -3,7 +3,7 @@
 	Created by Matt Filer
 */
 
-$(document).ready(function() {
+function ARTSTATION(THIS_REGION) {
 	//SHOW CONTROLS MODAL
 	$("#ARTSTATION_ControlPanel").modal("show");
 
@@ -25,12 +25,14 @@ $(document).ready(function() {
 	var VIDEO = [];
 	var LOCATION = [];
 	var LOCATION_INFO = [];
+	var REGION_INFO = [];
 	var DOLLY_COUNTER = [0,0];
 	var VIDEO_DOLLY_COUNTER = [0,0];
 	var CAMERA_SAVE = null; //This is set after defining viewer
 	var WORLD_VIEW_MAP = new THREE.Group();
 	WORLD_VIEW_MAP.name = "ARTSTATION_WorldViewMap";
 	var MAP_TILES = [{x: 0, y: 0}];
+	var NUMBER_OF_LOCATIONS = 0; //Set upon loading JSON
 
 	//DEFINE WORLD STATES
 	var IN_WORLDVIEW = 0; //Using slow drag to look around controls
@@ -44,7 +46,9 @@ $(document).ready(function() {
 	var UI_HIDE_ENVIRONMENT = 1;
 	var UI_SHOW_VIDEO = 2;
 	var UI_HIDE_VIDEO = 3;
-	var UI_RESET = 4;
+	var UI_SHOW_WORLDVIEW = 4;
+	var UI_HIDE_WORLDVIEW = 5;
+	var UI_RESET = 6;
 
 	//DEFINE MAP DETAIL LEVELS (tile density)
 	//These will also need to be updated in "createMapAround" if they are modified!
@@ -167,98 +171,12 @@ $(document).ready(function() {
 	setState(IN_WORLDVIEW, false);
 	StateChangeUI(UI_RESET);
 	ToggleMarkerVisibility(false,false);
+	loadRegionData();
+	loadLocationsFromJson();
 
 	/*
 		--
-		CONFIGURE LOCATIONS
-		--
-	*/
-
-	var NUMBER_OF_LOCATIONS = 4; 
-
-	//LOAD FIELD
-	loadLocation(
-		"field", 
-		50, 
-		true,
-		[0,0],
-		function(location) { 
-			//Videos In Environment
-			createVideo(location, "DJI_0003", "Dead Grass Circle", 20); 
-			createVideo(location, "DJI_0005", "River Tracking Shot"); 
-			createVideo(location, "DJI_0009", "Static Spin Shot", 15); 
-
-			//Environment Info
-			addEnvInfo(location, 
-				"The Field", 
-				"The field is located just off of a model aircraft flight area, a great spot for testing the drone for this application!", 
-				["Located in Somerset.", "Lets you fly model aircraft.", "Other good stuff."]);
-
-			//Generate World Web
-			generateWorldWeb();
-		}
-	);
-
-	//LOAD ST THOMAS HEAD
-	loadLocation(
-		"st_thomas_head", 
-		45, 
-		true,
-		[0,0],
-		function(location) { 
-			//Videos In Environment
-			createVideo(location, "DJI_0023", "Out Over The River"); 
-
-			//Environment Info
-			addEnvInfo(location, 
-				"St Thomas Head", 
-				"An old MOD base used during the war to develop and test a range of explosives. Before being discontinued it was used for bomb disposal.", 
-				["Located in Somerset.", "Now demolished.", "Out of service."]);
-
-			//Generate World Web
-			generateWorldWeb();
-		}
-	);
-
-	//LOAD FARM (NO POINTCLOUD)
-	loadLocation(
-		"farm",
-		45,
-		false,
-		[51.385721, -2.854938],
-		function(location) { 
-			//Environment Info
-			addEnvInfo(location, 
-				"Farm", 
-				"The farm is located between St Thomas Head and the model aircraft field. No pointcloud data is available.", 
-				["Low data location.", "A farm.", "Something else."]);
-
-			//Generate World Web
-			generateWorldWeb();
-		}
-	);
-
-	//LOAD SEA WALL (NO POINTCLOUD)
-	loadLocation(
-		"sea_wall",
-		45,
-		false,
-		[51.406961, -2.895358],
-		function(location) { 
-			//Environment Info
-			addEnvInfo(location, 
-				"Sea Wall", 
-				"The sea wall is located near to the shooting range, close to St Thomas Head. It is a location with no pointcloud.", 
-				["Low data location.", "A sea wall.", "Something else."]);
-
-			//Generate World Web
-			generateWorldWeb();
-		}
-	);
-
-	/*
-		--
-		MISC
+		LOOP
 		--
 	*/
 
@@ -341,18 +259,98 @@ $(document).ready(function() {
 
 	/*
 		--
+		REGION
+		--
+	*/
+
+	//LOAD ALL REGIONS FROM JSON FILE
+	function loadRegionData() {
+		var region_data = [];
+	    var regions_json_path = "http://assets.artstation.mattfiler.co.uk/CONFIGS/regions.json"; 
+	    $.getJSON(regions_json_path, function(data) {
+	        $.each(data, function(key, val) {
+	            region_data.push(val); //Add to array
+	        });
+	    }).done(function(json) {
+	    	//Load data for this region
+			region_data = region_data[0];
+			for (var i=0;i<region_data.length;i++) {
+				if (i == THIS_REGION) {
+					REGION_INFO.push(region_data[i]);
+				}
+			}
+			REGION_INFO = REGION_INFO[0];
+
+			//Apply region data to popup title/desc
+	    	$(".ARTSTATION_RegionName").text(REGION_INFO.name);
+	    	$(".ARTSTATION_RegionDesc").text(REGION_INFO.description);
+
+	    	//Add region name to page title
+			$(".ARTSTATION_RegionTitle").text(REGION_INFO.name);
+		});
+	}
+
+	/*
+		--
 		LOCATION
 		--
 	*/
 
+	//LOAD ALL LOCATIONS FROM JSON FILE
+	function loadLocationsFromJson() {
+		var location_data = [];
+	    var locations_json_path = "http://assets.artstation.mattfiler.co.uk/CONFIGS/locations.json"; 
+	    $.getJSON(locations_json_path, function(data) {
+	        $.each(data, function(key, val) {
+	            location_data.push(val); //Add to array
+	        });
+	    }).done(function(json) {
+			location_data = location_data[0];
+			//Update location count
+			NUMBER_OF_LOCATIONS = location_data.length;
+			for (var i=0;i<location_data.length;i++) {
+				//Only load current region
+				if (location_data[i].region != THIS_REGION) {
+					continue;
+				}
+
+				//Add location
+				loadLocation(
+					location_data[i],
+					function(locationData, locationIndex) { 
+						//Add Videos (if they exist)
+						if (locationData.videos) {
+							for (var x=0;x<locationData.videos.length;x++) {
+								var offset = locationData.videos[x].offset;
+								createVideo(locationIndex, locationData.videos[x].filename, locationData.videos[x].title, offset[0], offset[1], offset[2]); 
+							}
+						}
+
+						//Environment Info
+						addEnvInfo(locationIndex, 
+							locationData.name, 
+							locationData.description, 
+							locationData.key_points);
+
+						//Generate World Web
+						generateWorldWeb();
+
+						//Reset view pitch
+						viewer.scene.view.pitch = -0.7853981633974672;
+					}
+				);
+			}
+		});
+	}
+
 	//LOAD LOCATION POINTCLOUD INTO VIEWER
-	function loadLocation(locationName, zOffset=0, isPointcloud=true, GPS=[0,0], callback=function(){}) {
-		if (isPointcloud) {
-	        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/"+locationName+"/cloud.js", locationName, e => {
+	function loadLocation(locationData, callback=function(){}) {
+		if (locationData.is_pointcloud) {
+	        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/"+locationData.filename+"/cloud.js", locationData.filename, e => {
         		//Position and configure pointcloud and add to scene
                 let pointcloud = e.pointcloud;
                 let material = pointcloud.material;
-                pointcloud.position.z = zOffset;
+                pointcloud.position.z = locationData.z_offset;
                 viewer.scene.addPointCloud(pointcloud);
                 material.pointColorType = Potree.PointColorType.RGB;
                 material.size = 1;
@@ -368,9 +366,10 @@ $(document).ready(function() {
 
                 //Compile location data and save to global array
 			    var location_data = {
-			        Name: locationName,
+			        Name: locationData.name,
+			        FileName: locationData.filename,
 			        UUID: pointcloud.uuid,
-			        Z_Offset: zOffset,
+			        Z_Offset: locationData.z_offset,
 			        Position: center,
 			        LocationGPS: ConvertToCoordinates(center.x, center.y)
 			    };
@@ -385,7 +384,7 @@ $(document).ready(function() {
 			    {
 					let locationAnnotation = new Potree.Annotation({
 						position: center,
-						title: locationName.replace(/_/g, " ")
+						title: locationData.name
 					});
 					viewer.scene.annotations.add(locationAnnotation);
 				}
@@ -407,19 +406,20 @@ $(document).ready(function() {
 				}
 
 				//Run callback to load videos and add env data
-				callback(location_data_length - 1);
+				callback(locationData, location_data_length - 1);
 	        });
 	    }
 	    else
 	    {
             //Compile location data and save to global array
-            var coords = ConvertToUTM(GPS[0], GPS[1]);
+            var coords = ConvertToUTM(locationData.gps[0], locationData.gps[1]);
 		    var location_data = {
-		        Name: locationName,
+		        Name: locationData.name,
+			    FileName: null,
 		        UUID: null,
-		        Z_Offset: zOffset,
-		        Position: new THREE.Vector3(coords[0], coords[1], zOffset),
-			    LocationGPS: GPS
+		        Z_Offset: locationData.z_offset,
+		        Position: new THREE.Vector3(coords[0], coords[1], locationData.z_offset),
+			    LocationGPS: locationData.gps
 		    };
 		    var location_data_length = LOCATION.push(location_data);
 
@@ -431,8 +431,8 @@ $(document).ready(function() {
 	    	//Add location name annotation
 		    {
 				let locationAnnotation = new Potree.Annotation({
-					position: new THREE.Vector3(coords[0], coords[1], zOffset),
-					title: locationName.replace(/_/g, " ")
+					position: new THREE.Vector3(coords[0], coords[1], locationData.z_offset),
+					title: locationData.name
 				});
 				locationAnnotation.addEventListener('click', event => {
 					clickedEnvironmentMarker(location_data_length - 1); //On click show info popup
@@ -441,7 +441,7 @@ $(document).ready(function() {
 			}
 
 			//Run callback to add env data
-			callback(location_data_length - 1);
+			callback(locationData, location_data_length - 1);
 	    }
 	}
 
@@ -490,12 +490,12 @@ $(document).ready(function() {
 	*/
 
 	//CREATE A VIDEO IN WORLD
-	function createVideo(locationIndex, videoName, videoTitle, zOffset=0, xOffset=0, yOffset=0) {
+	function createVideo(locationIndex, videoName, videoTitle, xOffset=0, yOffset=0, zOffset=0) {
 	    //Create HTML video element to draw texture from
 	    var video_element = document.createElement("video");
-	    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].Name+"/"+videoName;
+	    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].FileName+"/"+videoName;
 	    if (device.mobile() == null) { video_element.src += ".mp4"; } else { video_element.src += "_mobile.mp4"; } //mobile/desktop video qualities
-	    video_element.id = LOCATION[locationIndex].Name+"_"+videoName;
+	    video_element.id = LOCATION[locationIndex].FileName+"_"+videoName;
 	    video_element.autoplay = false;
 	    video_element.loop = false;
 	    video_element.volume = 1; //Only certain videos actually have an audio track, but force full volume for all anyways and let the Browser handle it.
@@ -511,7 +511,7 @@ $(document).ready(function() {
 
 	    //Create the video plane mesh with HTML element texture, child of main parent
 	    var video_plane = new THREE.PlaneGeometry(20, 12, 1, 1);
-	    var video_elem = document.getElementById(LOCATION[locationIndex].Name+"_"+videoName);
+	    var video_elem = document.getElementById(LOCATION[locationIndex].FileName+"_"+videoName);
 	    var video_texture = new THREE.VideoTexture(video_elem);
 	    video_texture.minFilter = THREE.LinearFilter;
 	    video_texture.magFilter = THREE.LinearFilter;
@@ -554,7 +554,7 @@ $(document).ready(function() {
 
 	    //Grab positioning data and save to array
 	    var video_position_data = [];
-	    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].Name + "&video=" + videoName; 
+	    var video_position_data_path = "API/gps_parser.php?location=" + LOCATION[locationIndex].FileName + "&video=" + videoName; 
 	    $.getJSON(video_position_data_path, function(data) {
 	        $.each(data, function(key, val) {
 	            video_position_data.push(val); //Add to array
@@ -564,7 +564,7 @@ $(document).ready(function() {
 	    //Compile video data
 	    var video_data = {
 	        Name: videoName,
-	        ElementID: LOCATION[locationIndex].Name+"_"+videoName,
+	        ElementID: LOCATION[locationIndex].FileName+"_"+videoName,
 	        LocationDataIndex: locationIndex, 
 	        VideoMesh: video_plane_mesh,
 	        ImportedTrackData: video_position_data,
@@ -787,6 +787,24 @@ $(document).ready(function() {
 		}
 	}
 
+	//ENLARGE CURRENT VIDEO
+	function enlargeCurrentVideo() {
+		for (var i = 0; i < VIDEO.length; i++) {
+			if (VIDEO[i].LockCamera == true) {
+				var video_player = document.getElementById(VIDEO[i].ElementID); 
+				if (video_player.requestFullscreen) {
+					video_player.requestFullscreen();
+				} else if (video_player.mozRequestFullScreen) {
+					video_player.mozRequestFullScreen();
+				} else if (video_player.webkitRequestFullscreen) {
+					video_player.webkitRequestFullscreen();
+				} else if (video_player.msRequestFullscreen) { 
+					video_player.msRequestFullscreen();
+				}
+			}
+		}
+	}
+
 	/*
 		--
 		UI INTERACTION
@@ -812,10 +830,11 @@ $(document).ready(function() {
 	        mouse.y = position[1];
 			controls.zoomToLocation(mouse, true, 1600, true, function() {
 				if (controls.didClickEnvironment) {
-					//Populate environment info popup
+					//Populate environment info popup & title
 					for (var i=0; i<LOCATION.length; i++) {
 						if (controls.clickedEnvironmentUUID == LOCATION[i].UUID) {
 							populateEnvInfoPopup(i);
+							$(".ARTSTATION_LocationTitle").text(LOCATION[i].Name);
 						}
 					}
 
@@ -843,6 +862,9 @@ $(document).ready(function() {
 			if (controls.didClickEnvironment) {
 				//Fade out name annotation during transition
 				$(".annotation").fadeOut(600);
+
+				//Change UI state early
+				StateChangeUI(UI_HIDE_WORLDVIEW);
 			}
 		}
 		
@@ -1042,8 +1064,14 @@ $(document).ready(function() {
 
 	//RETURN TO WORLD VIEW
 	$('.ARTSTATION_HomeBtn').on('click', function(){
+		StateChangeUI(UI_HIDE_ENVIRONMENT);
 	    ReturnToWorldView();
 	});
+	//RETURN TO REGION LIST
+	$('.ARTSTATION_ReturnToRegionList').on('click', function(){
+	    window.location = "/";
+	});
+
 
 	//VIDEO PLAY/PAUSE CONTROLS
 	$('.ARTSTATION_PlayBtn').on('click', function(){
@@ -1051,6 +1079,11 @@ $(document).ready(function() {
 	});
 	$('.ARTSTATION_PauseBtn').on('click', function(){
 	    pauseCurrentVideo();
+	});
+
+	//ENLARGE VIDEO (go fullscreen)
+	$('.ARTSTATION_MaximiseBtn').on('click', function(){
+	    enlargeCurrentVideo();
 	});
 	
 	//EXIT VIDEO
@@ -1091,21 +1124,23 @@ $(document).ready(function() {
 
 		//Basic UI updates
 		if (WORLD_STATE == IN_ENVIRONMENT) {
-			StateChangeUI(UI_SHOW_ENVIRONMENT);
+			//StateChangeUI(UI_HIDE_WORLDVIEW); - now handled elsewhere
 			for (var i=0; i<viewer.scene.scene.children.length; i++) {
 				if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
 					viewer.scene.scene.children[i].visible = false;
 				}
 			}
+			StateChangeUI(UI_SHOW_ENVIRONMENT);
 		} 
 		else if (WORLD_STATE == IN_WORLDVIEW) {
-			StateChangeUI(UI_HIDE_ENVIRONMENT);
+			//StateChangeUI(UI_HIDE_ENVIRONMENT); - now handled elsewhere
 			INFO_POPUP_IS_HIDDEN = false;
 			for (var i=0; i<viewer.scene.scene.children.length; i++) {
 				if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
 					viewer.scene.scene.children[i].visible = true;
 				}
 			}
+			StateChangeUI(UI_SHOW_WORLDVIEW);
 		}
 
 		//Marker click sanity bug-fix
@@ -1119,6 +1154,7 @@ $(document).ready(function() {
 		if (state == UI_RESET) {
 			$(".OnlyInEnvironment").hide();
 			$(".OnlyInVideo").hide();
+			$(".OnlyInWorldView").show();
 		} else if (state == UI_SHOW_ENVIRONMENT) {
 			$(".OnlyInEnvironment").fadeIn(500);
 			if (!INFO_POPUP_IS_HIDDEN) { $("#ARTSTATION_ControlPanel").modal("show"); }
@@ -1129,6 +1165,10 @@ $(document).ready(function() {
 			$(".OnlyInVideo").fadeIn(500);
 		} else if (state == UI_HIDE_VIDEO) {
 			$(".OnlyInVideo").fadeOut(500);
+		} else if (state == UI_SHOW_WORLDVIEW) {
+			$(".OnlyInWorldView").fadeIn(500);
+		} else if (state == UI_HIDE_WORLDVIEW) {
+			$(".OnlyInWorldView").fadeOut(500);
 		}
 	}
 
@@ -1361,15 +1401,15 @@ $(document).ready(function() {
 				}
 
 				//Work out the GPS of the map tile (for placing in world)
-				var lat_tile_coords = tile2lat(lat_tile+lat_x, zoom);
-				var lon_tile_coords = tile2lon(lon_tile+lon_x, zoom);
+				var lat_tile_coords = tile2lat(tile_y, zoom);
+				var lon_tile_coords = tile2lon(tile_x, zoom);
                 var tile_pos = ConvertToUTM(lat_tile_coords, lon_tile_coords);
 
                 //Generate URL (new optional quality param)
-                var tile_url = "https://maps.wikimedia.org/"+type+"/"+zoom+"/"+(lon_tile+lon_x)+"/"+(lat_tile+lat_x)+".png";
+                var tile_url = "https://maps.wikimedia.org/"+type+"/"+zoom+"/"+tile_x+"/"+tile_y+".png";
                 if (quality != 0) {
                 	//Supports 1.3, 1.5, 2, 2.6, 3 times the original resolution
-                	tile_url = "https://maps.wikimedia.org/"+type+"/"+zoom+"/"+(lon_tile+lon_x)+"/"+(lat_tile+lat_x)+"@"+quality+"x.png";
+                	tile_url = "https://maps.wikimedia.org/"+type+"/"+zoom+"/"+tile_x+"/"+tile_y+"@"+quality+"x.png";
                 }
 
                 //Save tile info to array
@@ -1436,6 +1476,12 @@ $(document).ready(function() {
 		//Create all map tile planes
 		for (var i=0; i<mapList.length; i++) {
 			var map_plane = new THREE.PlaneGeometry(tile[zoom].size, tile[zoom].size, 1, 1);
+			/*
+			var map_texture = new THREE.TextureLoader().load(mapList[i].TileURL, undefined, undefined, function(e) {
+				console.log("ERROR");
+				map_texture = new THREE.TextureLoader().load("http://assets.artstation.mattfiler.co.uk/IMAGES/mapfail.png");
+			});
+			*/
 			var map_texture = new THREE.TextureLoader().load(mapList[i].TileURL);
 			map_texture.crossOrigin = 'anonymous';
 			map_texture.wrapS = THREE.RepeatWrapping;
@@ -1476,4 +1522,4 @@ $(document).ready(function() {
 		}
 		viewer.scene.scene.add(WORLD_VIEW_MAP);
 	}
-});
+}
