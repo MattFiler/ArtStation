@@ -1604,8 +1604,8 @@ function checkForWastedResources(url, xhr) {
 					let distance = point.position.distanceTo(nextPoint.position);
 
 					edgeLabel.position.copy(center);
-					edgeLabel.setText(Utils.addCommas(distance.toFixed(2)) + ' ' + this.lengthUnit.code);
-					edgeLabel.visible = this.showDistances && (index < lastIndex || this.closed) && this.points.length >= 2 && distance > 0;
+					//edgeLabel.setText(Utils.addCommas(distance.toFixed(2)) + ' ' + this.lengthUnit.code); MFILER-200818
+					//edgeLabel.visible = this.showDistances && (index < lastIndex || this.closed) && this.points.length >= 2 && distance > 0; MFILER-200818
 				}
 
 				{ // angle labels

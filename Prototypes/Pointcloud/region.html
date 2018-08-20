@@ -17,7 +17,7 @@
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/Cesium/Widgets/CesiumWidget/CesiumWidget.css">
 
 	<!-- ARTSTATION Styles -->
-	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css?2">
 </head>
 
 <body>
@@ -55,6 +55,13 @@
 			</h1>
 		</center>
 	</noscript>
+
+	<!-- ARTSTATION Load Screen -->
+	<div class="ARTSTATION_LoadScreen">
+		<div class="ARTSTATION_LoadScreenInner">
+			<p class="ARTSTATION_LoadScreenText">LOADING <span class="ARTSTATION_LoadPercent">0</span>%</p>
+		</div>
+	</div>
 
 	<!-- ARTSTATION Region Title -->
 	<div class="ARTSTATION_RegionTitle DesktopOnly OnlyInWorldView"></div>
@@ -144,7 +151,7 @@
 		<div id="potree_render_area">
 			<div id="cesiumContainer"></div>			
 		</div>
-		<!--<div id="potree_sidebar_container"> </div>-->
+		<div id="potree_sidebar_container"> </div>
 	</div>	
 
 	<script>

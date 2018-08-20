@@ -4,9 +4,6 @@
 */
 
 function ARTSTATION(THIS_REGION) {
-	//SHOW CONTROLS MODAL
-	$("#ARTSTATION_ControlPanel").modal("show");
-
 	/*
 		--
 		SETUP
@@ -33,6 +30,9 @@ function ARTSTATION(THIS_REGION) {
 	WORLD_VIEW_MAP.name = "ARTSTATION_WorldViewMap";
 	var MAP_TILES = [{x: 0, y: 0}];
 	var NUMBER_OF_LOCATIONS = 0; //Set upon loading JSON
+	var NUMBER_OF_LOCATIONS_LOADED = 0; //Updated dynamically
+	var GLOBAL_LOAD_CALCULATOR = [0,0]; //Only used for calculating percent
+	var GLOBAL_LOAD_PERCENT = 0; //Updated dynamically
 
 	//DEFINE WORLD STATES
 	var IN_WORLDVIEW = 0; //Using slow drag to look around controls
@@ -159,20 +159,19 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//ENABLE DEMO PANEL
-	/* viewer.loadGUI(() => {
+	viewer.loadGUI(() => {
 		viewer.setLanguage('en');
 		$("#menu_appearance").next().show();
 		$("#menu_tools").next().show();
 		//$("#menu_scene").next().show();
 		//viewer.toggleSidebar();
-	}); */
+	}); 
 
-	//SET INITIAL STATE
-	setState(IN_WORLDVIEW, false);
-	StateChangeUI(UI_RESET);
-	ToggleMarkerVisibility(false,false);
-	loadRegionData();
-	loadLocationsFromJson();
+	$(".ARTSTATION_LoadScreen").fadeIn(500, function() {
+		//LOAD REQUIRED DATA
+		loadRegionData();
+		loadLocationsFromJson();
+	});
 
 	/*
 		--
@@ -275,7 +274,7 @@ function ARTSTATION(THIS_REGION) {
 	    	//Load data for this region
 			region_data = region_data[0];
 			for (var i=0;i<region_data.length;i++) {
-				if (i == THIS_REGION) {
+				if (region_data[i].region_id == THIS_REGION) {
 					REGION_INFO.push(region_data[i]);
 				}
 			}
@@ -333,7 +332,7 @@ function ARTSTATION(THIS_REGION) {
 							locationData.key_points);
 
 						//Generate World Web
-						generateWorldWeb();
+						generateWorldWeb(locationIndex);
 
 						//Reset view pitch
 						viewer.scene.view.pitch = -0.7853981633974672;
@@ -344,6 +343,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//LOAD LOCATION POINTCLOUD INTO VIEWER
+	//Needs refactoring...
 	function loadLocation(locationData, callback=function(){}) {
 		if (locationData.is_pointcloud) {
 	        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/"+locationData.filename+"/cloud.js", locationData.filename, e => {
@@ -371,7 +371,9 @@ function ARTSTATION(THIS_REGION) {
 			        UUID: pointcloud.uuid,
 			        Z_Offset: locationData.z_offset,
 			        Position: center,
-			        LocationGPS: ConvertToCoordinates(center.x, center.y)
+			        LocationGPS: ConvertToCoordinates(center.x, center.y),
+			        LocationID: locationData.location_id,
+			        MapLoaded: [false, false]
 			    };
 			    var location_data_length = LOCATION.push(location_data);
 
@@ -405,43 +407,75 @@ function ARTSTATION(THIS_REGION) {
 					let maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
 				}
 
+				locationProgress(1);
+
 				//Run callback to load videos and add env data
 				callback(locationData, location_data_length - 1);
 	        });
 	    }
 	    else
 	    {
-            //Compile location data and save to global array
-            var coords = ConvertToUTM(locationData.gps[0], locationData.gps[1]);
-		    var location_data = {
-		        Name: locationData.name,
-			    FileName: null,
-		        UUID: null,
-		        Z_Offset: locationData.z_offset,
-		        Position: new THREE.Vector3(coords[0], coords[1], locationData.z_offset),
-			    LocationGPS: locationData.gps
-		    };
-		    var location_data_length = LOCATION.push(location_data);
+	        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/default/cloud.js", "default", e => {
+	        	//Position pointcloud correctly
+	        	var z_offset = locationData.z_offset;
+	        	if (z_offset == undefined) { z_offset = 0; }
+	            var coords = ConvertToUTM(locationData.gps[0], locationData.gps[1]);
+	        	let pointcloud = e.pointcloud;
+	        	pointcloud.position.set(coords[0], coords[1], z_offset);
+	        	viewer.scene.addPointCloud(pointcloud);
+	        	viewer.fitToScreen();
 
-		    //Generate map around location
-			if (!USE_CESIUM) {
-				createMapForLocation(location_data_length - 1);
-			}
+	            //Compile location data and save to global array
+			    var location_data = {
+			        Name: locationData.name,
+				    FileName: null,
+			        UUID: null, //We do have a UUID here, but it isn't needed. Setting to null will let future scripts know we're defaulting.
+			        Z_Offset: locationData.z_offset,
+			        Position: new THREE.Vector3(coords[0], coords[1], z_offset),
+				    LocationGPS: locationData.gps,
+			        LocationID: locationData.location_id,
+			        MapLoaded: [false]
+			    };
+			    var location_data_length = LOCATION.push(location_data);
 
-	    	//Add location name annotation
-		    {
-				let locationAnnotation = new Potree.Annotation({
-					position: new THREE.Vector3(coords[0], coords[1], locationData.z_offset),
-					title: locationData.name
-				});
-				locationAnnotation.addEventListener('click', event => {
-					clickedEnvironmentMarker(location_data_length - 1); //On click show info popup
-				});
-				viewer.scene.annotations.add(locationAnnotation);
-			}
+			    //Generate map around location
+				if (!USE_CESIUM) {
+					createMapForLocation(location_data_length - 1);
+				}
 
-			//Run callback to add env data
-			callback(locationData, location_data_length - 1);
+		    	//Add location name annotation
+			    {
+					let locationAnnotation = new Potree.Annotation({
+						position: new THREE.Vector3(coords[0], coords[1], locationData.z_offset),
+						title: locationData.name
+					});
+					locationAnnotation.addEventListener('click', event => {
+						clickedEnvironmentMarker(location_data_length - 1); //On click show info popup
+					});
+					viewer.scene.annotations.add(locationAnnotation);
+				}
+
+				Potree.measureTimings = true;
+				
+				//Zone 30U covers most of England and Wales so we should be fine with this - geoutm.js can always calculate for us.
+				let pointcloudProjection = "+proj=utm +zone=30 +ellps=GRS80 +datum=NAD83 +units=m +no_defs";
+				let mapProjection = proj4.defs("WGS84");
+
+				window.toMap = proj4(pointcloudProjection, mapProjection);
+				window.toScene = proj4(mapProjection, pointcloudProjection);
+				
+				{
+					let bb = viewer.getBoundingBox();
+
+					let minWGS84 = proj4(pointcloudProjection, mapProjection, bb.min.toArray());
+					let maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
+				}
+
+				locationProgress(1);
+
+				//Run callback to add env data
+				callback(locationData, location_data_length - 1);
+			});
 	    }
 	}
 
@@ -1069,7 +1103,9 @@ function ARTSTATION(THIS_REGION) {
 	});
 	//RETURN TO REGION LIST
 	$('.ARTSTATION_ReturnToRegionList').on('click', function(){
-	    window.location = "/";
+		$("body").fadeOut(500, function() {
+	    	window.location = "/";
+		});
 	});
 
 
@@ -1095,6 +1131,64 @@ function ARTSTATION(THIS_REGION) {
 	$('.ARTSTATION_ClosePopup').on('click', function(){
 	    hideInfoPopup();
 	});
+
+	/*
+		--
+		PROGRESS CHECKS
+		--
+	*/
+
+	//LOCATION PROGRESS
+	function locationProgress(updateBy=0) {
+		NUMBER_OF_LOCATIONS_LOADED += updateBy;
+		var load_percent = (NUMBER_OF_LOCATIONS_LOADED / NUMBER_OF_LOCATIONS) * 100;
+		globalProgress(load_percent, 0);
+	}
+
+	//MAP PROGRESS
+	function mapProgress(mapDetail, location_id) {
+		if (mapDetail == MAP_DETAIL_HIGH) {
+			LOCATION[location_id].MapLoaded[1] = true;
+		}
+		else
+		{
+			LOCATION[location_id].MapLoaded[0] = true;
+		}
+		var map_loaded_count = 0;
+		var map_not_loaded_count = 0;
+		for (var i=0; i<LOCATION.length; i++) {
+			for (var x=0; x<LOCATION[i].MapLoaded.length; x++) {
+				if (LOCATION[i].MapLoaded[x] == true) {
+					map_loaded_count++;
+				}
+				else
+				{
+					map_not_loaded_count++;
+				}
+			}
+		}
+		var load_percent = (map_loaded_count / (map_loaded_count + map_not_loaded_count)) * 100;
+		globalProgress(load_percent, 1);
+	}
+
+	//GLOBAL PROGRESS
+	function globalProgress(updateBy, loader_id) {
+		GLOBAL_LOAD_CALCULATOR[loader_id] = (updateBy/2); //Divided by 2 as we have 2 loaders
+		GLOBAL_LOAD_PERCENT = 0;
+		for (var i=0; i<GLOBAL_LOAD_CALCULATOR.length; i++) {
+			GLOBAL_LOAD_PERCENT += GLOBAL_LOAD_CALCULATOR[i];
+		}
+		$(".ARTSTATION_LoadPercent").text(Math.floor(GLOBAL_LOAD_PERCENT));
+		if (GLOBAL_LOAD_PERCENT == 100) {
+			setState(IN_WORLDVIEW, false);
+			StateChangeUI(UI_RESET);
+			ToggleMarkerVisibility(false,false);
+
+			$("#ARTSTATION_ControlPanel").modal("show");
+			$(".potree_container").fadeIn();
+			$(".ARTSTATION_LoadScreen").fadeOut();
+		}
+	}
 
 	/*
 		--
@@ -1125,27 +1219,26 @@ function ARTSTATION(THIS_REGION) {
 		//Basic UI updates
 		if (WORLD_STATE == IN_ENVIRONMENT) {
 			//StateChangeUI(UI_HIDE_WORLDVIEW); - now handled elsewhere
-			for (var i=0; i<viewer.scene.scene.children.length; i++) {
-				if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
-					viewer.scene.scene.children[i].visible = false;
-				}
-			}
+			showWorldWeb(false);
 			StateChangeUI(UI_SHOW_ENVIRONMENT);
 		} 
 		else if (WORLD_STATE == IN_WORLDVIEW) {
 			//StateChangeUI(UI_HIDE_ENVIRONMENT); - now handled elsewhere
 			INFO_POPUP_IS_HIDDEN = false;
-			for (var i=0; i<viewer.scene.scene.children.length; i++) {
-				if (viewer.scene.scene.children[i].name == "ARTSTATION_WorldViewWeb") {
-					viewer.scene.scene.children[i].visible = true;
-				}
-			}
+			showWorldWeb(true);
 			StateChangeUI(UI_SHOW_WORLDVIEW);
 		}
 
 		//Marker click sanity bug-fix
 		if (WORLD_STATE != IS_TRACKING_VIDEO) {
 			CAN_CLICK_ON_MARKERS = true;
+		}
+	}
+
+	//SHOW/HIDE WORLD WEB
+	function showWorldWeb(shouldShow) {
+		for (var i=0; i<viewer.scene.measurements.length; i++) {
+			viewer.scene.measurements[i].visible = shouldShow;
 		}
 	}
 
@@ -1304,27 +1397,49 @@ function ARTSTATION(THIS_REGION) {
 	});
 
 	//CREATE WORLD VIEW WEB
-	function generateWorldWeb() {
+	function generateWorldWeb(location_id) {
 		NUMBER_OF_LOADED_LOCATIONS++;
-		if (NUMBER_OF_LOADED_LOCATIONS == NUMBER_OF_LOCATIONS) {
-			//var WorldWebMat = new THREE.LineBasicMaterial({color: 0xff9000, transparent: true, opacity: 1, linewidth: 5}); //WebGL hates linewidth!
-			var WorldWebMat = new MeshLineMaterial({color: new THREE.Color('#ff9000'), sizeAttenuation: false, lineWidth: 15, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight)});
-			var WorldWebGeo = new THREE.Geometry();
-			for (var i=0; i<LOCATION.length; i++) {
-				WorldWebGeo.vertices.push(LOCATION[i].Position);
-				for (var x=0; x<LOCATION.length; x++) {
-					if (x != i) {
-						WorldWebGeo.vertices.push(LOCATION[x].Position);
+		if (location_id == (NUMBER_OF_LOCATIONS-1)) {
+			var line_data = [];
+		    var line_path = "http://assets.artstation.mattfiler.co.uk/CONFIGS/lines.json"; 
+		    $.getJSON(line_path, function(data) {
+		        $.each(data, function(key, val) {
+		            line_data.push(val); //Add to array
+		        });
+		    }).done(function(json) {
+				line_data = line_data[0];
+				for (var i=0;i<line_data.length;i++) {
+					//Replace location ids with positions
+					for (var x=0; x<LOCATION.length;x++) {
+						if (LOCATION[x].LocationID == line_data[i].from) {
+							line_data[i].from = LOCATION[x].Position;
+						}
+						if (LOCATION[x].LocationID == line_data[i].to) {
+							line_data[i].to = LOCATION[x].Position;
+						}
+					}
+					//Create line
+					{ 
+						let line = new Potree.Measure();
+						line.addMarker(line_data[i].from);
+						line.addMarker(line_data[i].to);
+						for (var x=0; x<line.spheres.length; x++) {
+							line.spheres[x].visible = false;
+						}
+						for (var x=0; x<line.edgeLabels.length; x++) {
+							if (line_data[i].text) {
+								line.edgeLabels[x].setText(line_data[i].text);
+								line.edgeLabels[x].visible = true;
+							}
+							else
+							{
+								line.edgeLabels[x].visible = false;
+							}
+						}
+						viewer.scene.addMeasurement(line);
 					}
 				}
-			}
-			//var WorldWeb = new THREE.Line(WorldWebGeo, WorldWebMat);
-			var WorldWebMesh = new MeshLine();
-			WorldWebMesh.setGeometry(WorldWebGeo);
-			var WorldWeb = new THREE.Mesh(WorldWebMesh.geometry, WorldWebMat);
-			WorldWeb.name = "ARTSTATION_WorldViewWeb";
-			WorldWeb.position.z += 50;
-			viewer.scene.scene.add(WorldWeb);
+			});
 		}
 	}
 
@@ -1346,7 +1461,7 @@ function ARTSTATION(THIS_REGION) {
 					}
 					else
 					{
-						new TWEEN.Tween(viewer.scene.scene.children[i].children[x].material).to({opacity: 0}, 500).start();
+						new TWEEN.Tween(viewer.scene.scene.children[i].children[x].material).to({opacity: 0}, 1500).start();
 					}
 				}
 				if (!shouldShow) { viewer.scene.scene.children[i].visible = false; }
@@ -1433,7 +1548,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//CREATE MAP AROUND A GPS POSITION
-	function createMapAround(gps=[0,0], zoom=14, mapType="osm-intl") {
+	function createMapAround(gps=[0,0], zoom=14, mapType="osm-intl", location_id=0) {
 		//Map object to return
 		var thisMap = new THREE.Group();
 		thisMap.name = "ARTSTATION_BespokeMapGroup"; //Overwriten on env maps
@@ -1474,20 +1589,28 @@ function ARTSTATION(THIS_REGION) {
 		var mapList = tileList(gps, zoom, tile[zoom].radius, tile[zoom].quality, mapType);
 
 		//Create all map tile planes
+		var load_counter = 0;
 		for (var i=0; i<mapList.length; i++) {
-			var map_plane = new THREE.PlaneGeometry(tile[zoom].size, tile[zoom].size, 1, 1);
-			/*
-			var map_texture = new THREE.TextureLoader().load(mapList[i].TileURL, undefined, undefined, function(e) {
-				console.log("ERROR");
-				map_texture = new THREE.TextureLoader().load("http://assets.artstation.mattfiler.co.uk/IMAGES/mapfail.png");
+			var map_texture = new THREE.TextureLoader().load(mapList[i].TileURL, function (tex) {
+				//Loaded
+				load_counter++;
+				if (load_counter == mapList.length) {
+					mapProgress(zoom, location_id);
+				}
+			}, undefined, function(e) {
+				//A loading error occured
+				console.error("ARTSTATION: Map loading error occured. Reloading page to utilise cache.");
+				$(".ARTSTATION_LoadScreen").fadeOut(1000, function() {
+					location.reload();
+				});
+				//Ideally want to stop the loop here.
 			});
-			*/
-			var map_texture = new THREE.TextureLoader().load(mapList[i].TileURL);
 			map_texture.crossOrigin = 'anonymous';
 			map_texture.wrapS = THREE.RepeatWrapping;
 			map_texture.wrapT = THREE.RepeatWrapping;
 			map_texture.repeat.set(1, 1);
 			var map_material = new THREE.MeshBasicMaterial({color: 0xffffff, map: map_texture, transparent: true, opacity: tile[zoom].defaultOpacity, alphaTest: 0.5});
+			var map_plane = new THREE.PlaneGeometry(tile[zoom].size, tile[zoom].size, 1, 1);
 			var map_plane_mesh = new THREE.Mesh(map_plane, map_material);
 			map_plane_mesh.name="ARTSTATION_MapTile";
 			map_plane_mesh.position.set(mapList[i].TileWorldX, mapList[i].TileWorldY, 0);
@@ -1502,17 +1625,18 @@ function ARTSTATION(THIS_REGION) {
 		return thisMap;
 	}
 
+	//CREATE A MAP FOR AN EXISTING LOCATION
 	function createMapForLocation(location_id) {
 		if (LOCATION[location_id].UUID != null) {
 			//Generate "environment view" map data for pointclouds
-			var envViewMap = createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_HIGH, MAP_TYPE[0]);
+			var envViewMap = createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_HIGH, MAP_TYPE[0], location_id);
 			envViewMap.name = "ARTSTATION_EnvViewMap_"+LOCATION[location_id].UUID;
 			envViewMap.visible = false; //only visible when location clicked (opacity too!)
 			viewer.scene.scene.add(envViewMap);
 		}
 
 		//Generate "world view" map data for all
-		WORLD_VIEW_MAP.add(createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_LOW, MAP_TYPE[0]));
+		WORLD_VIEW_MAP.add(createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_LOW, MAP_TYPE[0], location_id));
 
 		//Update the "world view" map
 		for (var i=0; i<viewer.scene.scene.children.length; i++) {

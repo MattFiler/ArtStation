@@ -9,10 +9,10 @@
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/bootswatch/bootstrap.css">
 
 	<!-- ARTSTATION Styles -->
-	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css?2">
 </head>
 
-<body>
+<body class="region_page">
 	<!-- Third-Party Scripts -->
 	<script src="SCRIPTS/jquery/jquery-3.1.1.min.js"></script>
 	<script src="SCRIPTS/bootstrap/js/bootstrap.js"></script>
@@ -55,8 +55,15 @@
 					var main_desc = document.createElement("h4");
 					main_desc.innerHTML = region_data[i].description;
 					var main_button = document.createElement("a");
-					main_button.href = "/region.html?r="+i;
+					main_button.setAttribute("class", "region_list_link");
+					main_button.setAttribute("artstation_region", i);
 					main_button.innerHTML = "GO THERE";
+					main_button.onclick = function() {
+						var button_clicked = this;
+						$("body").fadeOut(500, function() {
+							window.location.replace("/region.html?r="+button_clicked.getAttribute("artstation_region"));
+						});
+					}
 					var main_divider = document.createElement("hr");
 
 					var main_div = document.createElement("div");
@@ -67,6 +74,7 @@
 
 					$(".ARTSTATION_RegionList").append(main_div);
 				}
+				$(".region_page").fadeIn(1000);
 			});
 		});
 	</script>

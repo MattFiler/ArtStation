@@ -9,6 +9,7 @@
         "Out of service."
       ],
       "region": 0,
+      "location_id": 0,
       "is_pointcloud": true,
       "filename": "st_thomas_head",
       "z_offset": 45,
@@ -29,6 +30,7 @@
         "Other good stuff."
       ],
       "region": 0,
+      "location_id": 1,
       "is_pointcloud": true,
       "filename": "field",
       "z_offset": 50,
@@ -59,6 +61,7 @@
         "Something else."
       ],
       "region": 0,
+      "location_id": 2,
       "is_pointcloud": false,
       "gps": [51.385721, -2.854938]
     },
@@ -71,6 +74,7 @@
         "Something else."
       ],
       "region": 0,
+      "location_id": 3,
       "is_pointcloud": false,
       "gps": [51.406961, -2.895358]
     }

@@ -2,19 +2,23 @@
   "regions": [
     {
       "name": "Somerset",
-      "description": "This is a region intended for the demo of ARTSTATION, featuring two pointclouds and two other locations."
+      "description": "This is a region intended for the demo of ARTSTATION, featuring two pointclouds and two other locations.",
+      "region_id": 0
     },
     {
-      "name": "North Wales",
-      "description": "This region will be in the final project, however has no locations in the current implementation."
+      "name": "Llyn Peninsula",
+      "description": "This region will be in the final project, however has no locations in the current implementation.",
+      "region_id": 1
     },
     {
-      "name": "South Wales",
-      "description": "This region will be in the final project, however has no locations in the current implementation."
+      "name": "Brecon Beacons National Park",
+      "description": "This region will be in the final project, however has no locations in the current implementation.",
+      "region_id": 2
     },
     {
-      "name": "West Wales",
-      "description": "This region will be in the final project, however has no locations in the current implementation."
+      "name": "Pembrokeshire",
+      "description": "This region will be in the final project, however has no locations in the current implementation.",
+      "region_id": 3
     }
   ]
 }
