@@ -54,11 +54,10 @@
 					main_title.innerHTML = region_data[i].name;
 					var main_desc = document.createElement("h4");
 					main_desc.innerHTML = region_data[i].description;
-					var main_button = document.createElement("a");
-					main_button.setAttribute("class", "region_list_link");
-					main_button.setAttribute("artstation_region", i);
-					main_button.innerHTML = "GO THERE";
-					main_button.onclick = function() {
+					var main_link = document.createElement("a");
+					main_link.setAttribute("class", "region_list_link");
+					main_link.setAttribute("artstation_region", i);
+					main_link.onclick = function() {
 						var button_clicked = this;
 						$("body").fadeOut(500, function() {
 							window.location.replace("/region.html?r="+button_clicked.getAttribute("artstation_region"));
@@ -67,9 +66,9 @@
 					var main_divider = document.createElement("hr");
 
 					var main_div = document.createElement("div");
-					main_div.appendChild(main_title);
-					main_div.appendChild(main_desc);
-					main_div.appendChild(main_button);
+					main_div.appendChild(main_link);
+					main_link.appendChild(main_title);
+					main_link.appendChild(main_desc);
 					main_div.appendChild(main_divider);
 
 					$(".ARTSTATION_RegionList").append(main_div);

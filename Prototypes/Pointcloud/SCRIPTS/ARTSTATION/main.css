@@ -96,7 +96,9 @@ video, #ARTSTATION_GoogleMap {
 	margin-top: -20px !important;
 	cursor: default !important;
 	transition: font-size 1s;
-	font-size:15px;
+	font-size:15px;    
+	padding-bottom: 50px;
+	pointer-events: auto;
 }
 .annotation:hover {
 	font-size:25px;

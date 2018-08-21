@@ -18,6 +18,9 @@ function ARTSTATION(THIS_REGION) {
 	var DEFAULT_CAMERA_OFFSET_DESKTOP = 30;
 	var DEFAULT_CAMERA_OFFSET_MOBILE = 50;
 
+	//DEFINE URLS
+	var ASSET_URL = "assets.artstation.mattfiler.co.uk";
+
 	//DEFINE DATA STORES
 	var VIDEO = [];
 	var LOCATION = [];
@@ -25,7 +28,7 @@ function ARTSTATION(THIS_REGION) {
 	var REGION_INFO = [];
 	var DOLLY_COUNTER = [0,0];
 	var VIDEO_DOLLY_COUNTER = [0,0];
-	var CAMERA_SAVE = null; //This is set after defining viewer
+	var MOUSE_CLICK_SAVE = null; //This is set later
 	var WORLD_VIEW_MAP = new THREE.Group();
 	WORLD_VIEW_MAP.name = "ARTSTATION_WorldViewMap";
 	var MAP_TILES = [{x: 0, y: 0}];
@@ -63,7 +66,16 @@ function ARTSTATION(THIS_REGION) {
 	var MAP_QUALITY_STANDARD = 0;
 
 	//DEFINE MAP TYPE
-	var MAP_TYPE = {0: "osm-intl"};
+	var MAP_TYPES = [
+		["https://maps.wikimedia.org/osm-intl", "png"], 
+		["https://stamen-tiles-c.a.ssl.fastly.net/toner-background/", "png"],
+		["http://tile.mtbmap.cz/mtbmap_tiles", "png"],
+		["https://stamen-tiles-a.a.ssl.fastly.net/watercolor", "jpg"],
+		["https://c.tile.openstreetmap.org", "png"],
+		["https://a.tile.opentopomap.org", "png"]
+	];
+	var WORLD_VIEW_MAP_TYPE = 5;
+	var ENV_VIEW_MAP_TYPE = 0;
 
 	//DEFINE POTREE VIEWER
 	window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
@@ -95,10 +107,6 @@ function ARTSTATION(THIS_REGION) {
 	viewer.useHQ = OPTIMISATION_UseHQ;
 	viewer.setMinNodeSize(OPTIMISATION_MinNodeSize);
 	console.log("Optimisation result:\nPOINT BUDGET - " + OPTIMISATION_PointBudget + "\nMIN NODE SIZE - " + OPTIMISATION_MinNodeSize + "\nSHOULD USE HQ - " + OPTIMISATION_UseHQ);
-
-	//Instanciate camera saving
-	CAMERA_SAVE = viewer.scene.getActiveCamera();
-	//console.log(CAMERA_SAVE);
 
 	//UPDATE CONTROL LIST
 	if (device.mobile() != null) {
@@ -159,7 +167,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//ENABLE DEMO PANEL
-	viewer.loadGUI(() => {
+	viewer.loadGUI(function() {
 		viewer.setLanguage('en');
 		$("#menu_appearance").next().show();
 		$("#menu_tools").next().show();
@@ -185,6 +193,10 @@ function ARTSTATION(THIS_REGION) {
 
 		if (currentDevice == null) {
 			currentDevice = new MobileDetect(window.navigator.userAgent)
+		}
+
+		if (WORLD_STATE == IS_TRACKING_VIDEO) {
+			$(".annotation").hide();
 		}
 
 		viewer.update(viewer.clock.getDelta(), timestamp);
@@ -265,7 +277,7 @@ function ARTSTATION(THIS_REGION) {
 	//LOAD ALL REGIONS FROM JSON FILE
 	function loadRegionData() {
 		var region_data = [];
-	    var regions_json_path = "http://assets.artstation.mattfiler.co.uk/CONFIGS/regions.json"; 
+	    var regions_json_path = "http://"+ASSET_URL+"/CONFIGS/regions.json"; 
 	    $.getJSON(regions_json_path, function(data) {
 	        $.each(data, function(key, val) {
 	            region_data.push(val); //Add to array
@@ -298,7 +310,7 @@ function ARTSTATION(THIS_REGION) {
 	//LOAD ALL LOCATIONS FROM JSON FILE
 	function loadLocationsFromJson() {
 		var location_data = [];
-	    var locations_json_path = "http://assets.artstation.mattfiler.co.uk/CONFIGS/locations.json"; 
+	    var locations_json_path = "http://"+ASSET_URL+"/CONFIGS/locations.json"; 
 	    $.getJSON(locations_json_path, function(data) {
 	        $.each(data, function(key, val) {
 	            location_data.push(val); //Add to array
@@ -346,7 +358,7 @@ function ARTSTATION(THIS_REGION) {
 	//Needs refactoring...
 	function loadLocation(locationData, callback=function(){}) {
 		if (locationData.is_pointcloud) {
-	        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/"+locationData.filename+"/cloud.js", locationData.filename, e => {
+	        Potree.loadPointCloud("http://"+ASSET_URL+"/POINTCLOUDS/"+locationData.filename+"/cloud.js", locationData.filename, e => {
         		//Position and configure pointcloud and add to scene
                 let pointcloud = e.pointcloud;
                 let material = pointcloud.material;
@@ -358,11 +370,21 @@ function ARTSTATION(THIS_REGION) {
                 material.shape = Potree.PointShape.CIRCLE;
                 viewer.fitToScreen();
 
+                //Make environment marker
+                var env_marker_geo = new THREE.CircleGeometry(200, 32);
+				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x000000});
+				var env_marker = new THREE.Mesh(env_marker_geo, env_marker_mat);
+				env_marker.name = "ARTSTATION_LocationMarker";
+
 			    //Find centre of pointcloud for annotation position 
 			    pointcloud.updateMatrixWorld();
 				let box = pointcloud.pcoGeometry.tightBoundingBox.clone();
 				box.applyMatrix4(pointcloud.matrixWorld);
 				let center = box.getCenter();
+
+				//Place environment marker
+				env_marker.position.set(center.x, center.y, 5);
+				viewer.scene.scene.add(env_marker);
 
                 //Compile location data and save to global array
 			    var location_data = {
@@ -373,7 +395,8 @@ function ARTSTATION(THIS_REGION) {
 			        Position: center,
 			        LocationGPS: ConvertToCoordinates(center.x, center.y),
 			        LocationID: locationData.location_id,
-			        MapLoaded: [false, false]
+			        MapLoaded: [false, false],
+			        Marker: env_marker
 			    };
 			    var location_data_length = LOCATION.push(location_data);
 
@@ -388,6 +411,11 @@ function ARTSTATION(THIS_REGION) {
 						position: center,
 						title: locationData.name
 					});
+					/*
+					locationAnnotation.addEventListener('mouseover', event => {
+						console.log("dgdsfgsd");
+					});
+					*/
 					viewer.scene.annotations.add(locationAnnotation);
 				}
 
@@ -415,7 +443,7 @@ function ARTSTATION(THIS_REGION) {
 	    }
 	    else
 	    {
-	        Potree.loadPointCloud("http://assets.artstation.mattfiler.co.uk/POINTCLOUDS/default/cloud.js", "default", e => {
+	        Potree.loadPointCloud("http://"+ASSET_URL+"/POINTCLOUDS/default/cloud.js", "default", e => {
 	        	//Position pointcloud correctly
 	        	var z_offset = locationData.z_offset;
 	        	if (z_offset == undefined) { z_offset = 0; }
@@ -424,6 +452,14 @@ function ARTSTATION(THIS_REGION) {
 	        	pointcloud.position.set(coords[0], coords[1], z_offset);
 	        	viewer.scene.addPointCloud(pointcloud);
 	        	viewer.fitToScreen();
+
+                //Make environment marker
+                var env_marker_geo = new THREE.CircleGeometry(50, 15);
+				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x000000});
+				var env_marker = new THREE.Mesh(env_marker_geo, env_marker_mat);
+				env_marker.name = "ARTSTATION_LocationMarker";
+				env_marker.position.set(coords[0], coords[1], 5);
+				viewer.scene.scene.add(env_marker);
 
 	            //Compile location data and save to global array
 			    var location_data = {
@@ -434,7 +470,8 @@ function ARTSTATION(THIS_REGION) {
 			        Position: new THREE.Vector3(coords[0], coords[1], z_offset),
 				    LocationGPS: locationData.gps,
 			        LocationID: locationData.location_id,
-			        MapLoaded: [false]
+			        MapLoaded: [false],
+			        Marker: env_marker
 			    };
 			    var location_data_length = LOCATION.push(location_data);
 
@@ -527,7 +564,7 @@ function ARTSTATION(THIS_REGION) {
 	function createVideo(locationIndex, videoName, videoTitle, xOffset=0, yOffset=0, zOffset=0) {
 	    //Create HTML video element to draw texture from
 	    var video_element = document.createElement("video");
-	    video_element.src = "http://assets.artstation.mattfiler.co.uk/VIDEOS/"+LOCATION[locationIndex].FileName+"/"+videoName;
+	    video_element.src = "http://"+ASSET_URL+"/VIDEOS/"+LOCATION[locationIndex].FileName+"/"+videoName;
 	    if (device.mobile() == null) { video_element.src += ".mp4"; } else { video_element.src += "_mobile.mp4"; } //mobile/desktop video qualities
 	    video_element.id = LOCATION[locationIndex].FileName+"_"+videoName;
 	    video_element.autoplay = false;
@@ -550,7 +587,7 @@ function ARTSTATION(THIS_REGION) {
 	    video_texture.minFilter = THREE.LinearFilter;
 	    video_texture.magFilter = THREE.LinearFilter;
 	    video_texture.format = THREE.RGBFormat;
-	    var video_material = new THREE.MeshBasicMaterial({color: 0xffffff, map: video_texture, transparent: true, opacity: 0}); //opacity needs to be 0 here if fading is re-enabled
+	    var video_material = new THREE.MeshBasicMaterial({color: 0xffffff, map: video_texture, transparent: true, opacity: 0}); 
 	    var video_plane_mesh = new THREE.Mesh(video_plane, video_material);
 	    video_plane_mesh.material.side = THREE.DoubleSide;
 	    video_plane_mesh.name = "ARTSTATION_VideoPlane"; 
@@ -580,7 +617,9 @@ function ARTSTATION(THIS_REGION) {
 		tracking_camera.fov = viewer.scene.getActiveCamera().fov;
 
 		//Create sprite video marker
-		var sprite_material = new THREE.SpriteMaterial({map: video_texture, color: 0xffffff});
+		var video_marker_texture = new THREE.TextureLoader().load("http://"+ASSET_URL+"/VIDEOS/"+LOCATION[locationIndex].FileName+"/"+videoName+".png");
+		video_marker_texture.crossOrigin = 'anonymous';
+		var sprite_material = new THREE.SpriteMaterial({map: video_marker_texture, color: 0xffffff, transparent:true, opacity: 0});
 		var marker_sprite = new THREE.Sprite(sprite_material);
 		marker_sprite.scale.set(17,11,0);
         marker_sprite.name = "ARTSTATION_VideoMarker";
@@ -709,8 +748,7 @@ function ARTSTATION(THIS_REGION) {
             	VIDEO_TWEEN_POSITION.onStart(() => {
             		VIDEO_TWEEN_ROTATION.start();
             		PARENT_TWEEN_ROTATION.start();
-					
-					$(".annotation").hide();
+
             		controls.isTransitioning = true;
             		camera_is_locked = true;
 				});
@@ -769,6 +807,7 @@ function ARTSTATION(THIS_REGION) {
 	//STOP VIDEO
 	function stopVideo(video_id) {
 		var video_player = document.getElementById(VIDEO[video_id].ElementID); 
+		video_player.style.display="none";
 		video_player.pause();
 		video_player.currentTime = 0;
 	    VIDEO[video_id].VideoMesh.visible = false;
@@ -814,8 +853,8 @@ function ARTSTATION(THIS_REGION) {
 					VIDEO[current_video].LockCamera = false;
 					TRACKING_CAMERA_OBJECT = null;
 					TRACKING_CAMERA_IS_ENABLED = false;
-					$(".annotation").hide();
 					stopVideo(current_video);
+					//controls.zoomToLocation({x:0,y:0}, true, 1, true, function() {}, MOUSE_CLICK_SAVE);
 				});
 			}
 		}
@@ -826,6 +865,7 @@ function ARTSTATION(THIS_REGION) {
 		for (var i = 0; i < VIDEO.length; i++) {
 			if (VIDEO[i].LockCamera == true) {
 				var video_player = document.getElementById(VIDEO[i].ElementID); 
+				video_player.style.display="initial";
 				if (video_player.requestFullscreen) {
 					video_player.requestFullscreen();
 				} else if (video_player.mozRequestFullScreen) {
@@ -872,6 +912,9 @@ function ARTSTATION(THIS_REGION) {
 						}
 					}
 
+					//Save camera config
+					MOUSE_CLICK_SAVE = controls.clickRawReturn;
+
 					//Configure camera
 		        	controls.worldViewCameraConfig = false;
 					setState(IN_ENVIRONMENT);
@@ -895,7 +938,7 @@ function ARTSTATION(THIS_REGION) {
 			});
 			if (controls.didClickEnvironment) {
 				//Fade out name annotation during transition
-				$(".annotation").fadeOut(600);
+				$(".annotation").fadeOut(600, function(){ $(".annotation").hide(); });
 
 				//Change UI state early
 				StateChangeUI(UI_HIDE_WORLDVIEW);
@@ -1336,9 +1379,6 @@ function ARTSTATION(THIS_REGION) {
         	//Position camera
 		    VIDEO[video_id].TransitionCamera.position.copy(viewer.scene.getActiveCamera().position);
 			VIDEO[video_id].TransitionCamera.rotation.copy(viewer.scene.getActiveCamera().rotation);
-
-			//Save camera config
-			CAMERA_SAVE = viewer.scene.getActiveCamera();
 		}
 		else
 		{
@@ -1375,6 +1415,9 @@ function ARTSTATION(THIS_REGION) {
 			if (isEnteringVideo) { StateChangeUI(UI_HIDE_ENVIRONMENT); } else { StateChangeUI(UI_HIDE_VIDEO); }
 			TRANSITION_TWEEN_ROTATION.start();
 		});
+		TRANSITION_TWEEN_POSITION.onUpdate(function(){
+			$(".annotation").hide();
+		});
 		TRANSITION_TWEEN_POSITION.onComplete(function(){
 			if (isEnteringVideo) { StateChangeUI(UI_SHOW_VIDEO); } else { StateChangeUI(UI_SHOW_ENVIRONMENT); }
 			callback();
@@ -1401,7 +1444,7 @@ function ARTSTATION(THIS_REGION) {
 		NUMBER_OF_LOADED_LOCATIONS++;
 		if (location_id == (NUMBER_OF_LOCATIONS-1)) {
 			var line_data = [];
-		    var line_path = "http://assets.artstation.mattfiler.co.uk/CONFIGS/lines.json"; 
+		    var line_path = "http://"+ASSET_URL+"/CONFIGS/lines.json"; 
 		    $.getJSON(line_path, function(data) {
 		        $.each(data, function(key, val) {
 		            line_data.push(val); //Add to array
@@ -1436,6 +1479,7 @@ function ARTSTATION(THIS_REGION) {
 								line.edgeLabels[x].visible = false;
 							}
 						}
+						line.color = {r:0,g:0,b:0};
 						viewer.scene.addMeasurement(line);
 					}
 				}
@@ -1492,7 +1536,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//GENERATE TILE LIST
-	function tileList(gps, zoom, radius, quality, type) {
+	function tileList(gps, zoom, radius, quality, mapType) {
 		var URLs = [];
 
 		//We need an even radius > 2
@@ -1521,10 +1565,10 @@ function ARTSTATION(THIS_REGION) {
                 var tile_pos = ConvertToUTM(lat_tile_coords, lon_tile_coords);
 
                 //Generate URL (new optional quality param)
-                var tile_url = "https://maps.wikimedia.org/"+type+"/"+zoom+"/"+tile_x+"/"+tile_y+".png";
+                var tile_url = mapType[0]+"/"+zoom+"/"+tile_x+"/"+tile_y+"."+mapType[1];
                 if (quality != 0) {
-                	//Supports 1.3, 1.5, 2, 2.6, 3 times the original resolution
-                	tile_url = "https://maps.wikimedia.org/"+type+"/"+zoom+"/"+tile_x+"/"+tile_y+"@"+quality+"x.png";
+                	//Supports 1.3, 1.5, 2, 2.6, 3 times the original resolution with wiki maps
+                	tile_url = mapType[0]+"/"+zoom+"/"+tile_x+"/"+tile_y+"@"+quality+"x."+mapType[1];
                 }
 
                 //Save tile info to array
@@ -1548,7 +1592,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//CREATE MAP AROUND A GPS POSITION
-	function createMapAround(gps=[0,0], zoom=14, mapType="osm-intl", location_id=0) {
+	function createMapAround(gps, zoom, mapType, location_id) {
 		//Map object to return
 		var thisMap = new THREE.Group();
 		thisMap.name = "ARTSTATION_BespokeMapGroup"; //Overwriten on env maps
@@ -1629,14 +1673,14 @@ function ARTSTATION(THIS_REGION) {
 	function createMapForLocation(location_id) {
 		if (LOCATION[location_id].UUID != null) {
 			//Generate "environment view" map data for pointclouds
-			var envViewMap = createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_HIGH, MAP_TYPE[0], location_id);
+			var envViewMap = createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_HIGH, MAP_TYPES[ENV_VIEW_MAP_TYPE], location_id);
 			envViewMap.name = "ARTSTATION_EnvViewMap_"+LOCATION[location_id].UUID;
 			envViewMap.visible = false; //only visible when location clicked (opacity too!)
 			viewer.scene.scene.add(envViewMap);
 		}
 
 		//Generate "world view" map data for all
-		WORLD_VIEW_MAP.add(createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_LOW, MAP_TYPE[0], location_id));
+		WORLD_VIEW_MAP.add(createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_LOW, MAP_TYPES[WORLD_VIEW_MAP_TYPE], location_id));
 
 		//Update the "world view" map
 		for (var i=0; i<viewer.scene.scene.children.length; i++) {

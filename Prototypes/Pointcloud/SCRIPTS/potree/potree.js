@@ -484,11 +484,11 @@ function checkForWastedResources(url, xhr) {
 			this.sprite = new THREE.Sprite(spriteMaterial);
 			this.add(this.sprite);
 
-			this.borderThickness = 4;
+			this.borderThickness = 0; //MFILER-210818: Changed from 4
 			this.fontface = 'Arial';
-			this.fontsize = 28;
+			this.fontsize = 25; //MFILER-210818: Reduced font size
 			this.borderColor = { r: 0, g: 0, b: 0, a: 1.0 };
-			this.backgroundColor = { r: 255, g: 255, b: 255, a: 1.0 };
+			this.backgroundColor = { r: 33, g: 150, b: 243, a: 1.0 }; //MFILER-210818: Changed from { r: 255, g: 255, b: 255, a: 1.0 }
 			this.textColor = {r: 255, g: 255, b: 255, a: 1.0};
 			this.text = '';
 
@@ -504,19 +504,19 @@ function checkForWastedResources(url, xhr) {
 		}
 
 		setTextColor(color){
-			this.textColor = color;
+			//this.textColor = color; MFILER-210818
 
 			this.update();
 		}
 
 		setBorderColor(color){
-			this.borderColor = color;
+			//this.borderColor = color; MFILER-210818
 
 			this.update();
 		}
 
 		setBackgroundColor(color){
-			this.backgroundColor = color;
+			//this.backgroundColor = color; MFILER-210818
 
 			this.update();
 		}
@@ -15067,6 +15067,7 @@ void main() {
 			this.rotationYawCurr = 0; //MFILER-260718
 			this.zoomRadiusPrev = 0; //MFILER-080818
 			this.zoomRadiusCurr = 0; //MFILER-080818
+			this.clickRawReturn = null; //MFILER-210818
 
 			this.tweens = [];
 
@@ -15273,6 +15274,7 @@ void main() {
 			this.didClickEnvironment = true; //MFILER-290618
 			this.clickedEnvironmentUUID = I.pointcloud.uuid; //MFILER-020718
 			this.focusPoint = I.location; //MFILER-060718
+			this.clickRawReturn = I; //MFILER-210818
 
 			//MFILER-090818 START
 			if (this.clickedEnvironmentUUID != null) {
@@ -15300,8 +15302,23 @@ void main() {
 			}
 			//MFILER-040718 END
 
+			//MFILER-210818 START
+			//Swapping out I.location with pointcloud centre when coming in from world view!
+			var LOCATION_TO_GO_TO = null;
+			if (shouldActuallyZoom) {
+				I.pointcloud.updateMatrixWorld();
+				let box = I.pointcloud.pcoGeometry.tightBoundingBox.clone();
+				box.applyMatrix4(I.pointcloud.matrixWorld);
+				LOCATION_TO_GO_TO = box.getCenter();
+			}
+			else
+			{
+				LOCATION_TO_GO_TO = I.location;
+			}
+			//MFILER-210818 END
+
 			let d = this.scene.view.direction.multiplyScalar(-1);
-			let cameraTargetPosition = new THREE.Vector3().addVectors(I.location, d.multiplyScalar(targetRadius));
+			let cameraTargetPosition = new THREE.Vector3().addVectors(LOCATION_TO_GO_TO, d.multiplyScalar(targetRadius)); //MFILER210818: Using my own variable here now
 			// TODO Unused: let controlsTargetPosition = I.location;
 
 			//let animationDuration = 600; - MFILER-050718: Now a function parameter.
@@ -23490,7 +23507,7 @@ ENDSEC
 						}
 						else
 						{
-							camera.far = 25000; //Keep main cams at this far on desktop
+							camera.far = 21500; //Keep main cams at this far on desktop
 						}
 					}
 					//MFILER-150818 END

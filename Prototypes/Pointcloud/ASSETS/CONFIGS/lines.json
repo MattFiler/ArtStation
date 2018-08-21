@@ -7,7 +7,7 @@
     {
       "from": 3,
       "to": 1,
-      "text": "Example Text"
+      "text": "3.2 Miles"
     },
     {
       "from": 1,
@@ -16,7 +16,7 @@
     {
       "from": 0,
       "to": 2,
-      "text": "More Text"
+      "text": "3.6 Miles"
     }
   ]
 }
