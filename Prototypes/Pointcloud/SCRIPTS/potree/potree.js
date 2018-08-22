@@ -1335,11 +1335,20 @@ function checkForWastedResources(url, xhr) {
 				lineGeometry.vertices.push(new THREE.Vector3(), new THREE.Vector3());
 				lineGeometry.colors.push(this.color, this.color, this.color);
 				let lineMaterial = new THREE.LineBasicMaterial({
-					linewidth: 1
+					linewidth: 3 //MFILER-220818: Updated from 1.
 				});
 				lineMaterial.depthTest = false;
 				let edge = new THREE.Line(lineGeometry, lineMaterial);
 				edge.visible = true;
+
+				/*
+				//MFILER-220818 START
+				var lineMaterial = new MeshLineMaterial({color: this.color, sizeAttenuation: false, lineWidth: 15, resolution: new THREE.Vector2(window.innerWidth, window.innerHeight)});
+				var lineMesh = new MeshLine();
+				lineMesh.setGeometry(lineGeometry);
+				var edge = new THREE.Mesh(lineMesh.geometry, lineMaterial);
+				//MFILER-220818 END
+				*/
 
 				this.add(edge);
 				this.edges.push(edge);
@@ -23507,6 +23516,7 @@ ENDSEC
 						}
 						else
 						{
+							//MFILER-210818: Changed far from 25000 to 21500
 							camera.far = 21500; //Keep main cams at this far on desktop
 						}
 					}

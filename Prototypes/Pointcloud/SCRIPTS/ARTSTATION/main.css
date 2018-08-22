@@ -111,14 +111,18 @@ noscript {
 	right: 0;
 	z-index: 997;
 }
+.progress {
+	background-color:white;
+}
 .ARTSTATION_LoadScreen {
 	background: white;
 	z-index: 999 !important;
 	height: 100vh;
 	width: 100%;
 	display:none;
+	text-align: center; 
 }
-.ARTSTATION_JavaScriptWarning, .ARTSTATION_LoadScreenInner {
+.ARTSTATION_JavaScriptWarning, .ARTSTATION_LoadScreenText {
 	color: white;
 	display: flex;
 	-ms-flex-align: center;
@@ -136,6 +140,7 @@ noscript {
 	color: black;
 	font-size: 50px;
 	line-height: 0;
+	position:fixed;
 }
 .ARTSTATION_VideoTitle, .ARTSTATION_LocationTitle, .ARTSTATION_RegionTitle {
 	position:absolute;
@@ -178,4 +183,13 @@ noscript {
 }
 .potree_menu_toggle {
 	display:none; /*Remove this for demo controls*/
+}
+.ARTSTATION_ProgressBar {
+	width: 100%; 
+	height: 100vh; 
+	position: absolute; 
+	left: 0; 
+	right: 0; 
+	top: 0; 
+	bottom: 0;
 }

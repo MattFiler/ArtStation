@@ -55,7 +55,8 @@ function ARTSTATION(THIS_REGION) {
 
 	//DEFINE MAP DETAIL LEVELS (tile density)
 	//These will also need to be updated in "createMapAround" if they are modified!
-	var MAP_DETAIL_HIGH = 18; //Environment View
+	var MAP_DETAIL_HIGHER = 18; //Environment View
+	var MAP_DETAIL_HIGH = 17; //Alt Environment View
 	var MAP_DETAIL_MEDIUM = 16; //Currently Unused
 	var MAP_DETAIL_LOW = 14; //World View
 
@@ -67,15 +68,16 @@ function ARTSTATION(THIS_REGION) {
 
 	//DEFINE MAP TYPE
 	var MAP_TYPES = [
-		["https://maps.wikimedia.org/osm-intl", "png"], 
-		["https://stamen-tiles-c.a.ssl.fastly.net/toner-background/", "png"],
-		["http://tile.mtbmap.cz/mtbmap_tiles", "png"],
-		["https://stamen-tiles-a.a.ssl.fastly.net/watercolor", "jpg"],
-		["https://c.tile.openstreetmap.org", "png"],
-		["https://a.tile.opentopomap.org", "png"]
+		["https://", ".wikimedia.org/osm-intl", "png", ["maps"]], 
+		["https://", ".tile.openstreetmap.org", "png", ["a","b","c","d"]],
+		["https://", ".tile.opentopomap.org", "png", ["a","b","c","d"]],
+		["http://", ".tile.stamen.com/watercolor", "jpg", ["a","b","c","d"]],
+		["https://stamen-tiles-d.", ".ssl.fastly.net/toner", "png", ["a"]]
 	];
-	var WORLD_VIEW_MAP_TYPE = 5;
-	var ENV_VIEW_MAP_TYPE = 0;
+	//var WORLD_VIEW_MAP_TYPE = 2;
+	//var ENV_VIEW_MAP_TYPE = 3;
+	var WORLD_VIEW_MAP_TYPE = 2;
+	var ENV_VIEW_MAP_TYPE = 2;
 
 	//DEFINE POTREE VIEWER
 	window.viewer = new Potree.Viewer(document.getElementById("potree_render_area"), {
@@ -175,7 +177,7 @@ function ARTSTATION(THIS_REGION) {
 		//viewer.toggleSidebar();
 	}); 
 
-	$(".ARTSTATION_LoadScreen").fadeIn(500, function() {
+	$(".ARTSTATION_LoadScreen").fadeIn(1500, function() {
 		//LOAD REQUIRED DATA
 		loadRegionData();
 		loadLocationsFromJson();
@@ -371,8 +373,8 @@ function ARTSTATION(THIS_REGION) {
                 viewer.fitToScreen();
 
                 //Make environment marker
-                var env_marker_geo = new THREE.CircleGeometry(200, 32);
-				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x000000});
+                var env_marker_geo = new THREE.CircleGeometry(300, 32);
+				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x8b0000});
 				var env_marker = new THREE.Mesh(env_marker_geo, env_marker_mat);
 				env_marker.name = "ARTSTATION_LocationMarker";
 
@@ -411,11 +413,10 @@ function ARTSTATION(THIS_REGION) {
 						position: center,
 						title: locationData.name
 					});
-					/*
-					locationAnnotation.addEventListener('mouseover', event => {
-						console.log("dgdsfgsd");
+					locationAnnotation.addEventListener('click', event => {
+						var controls = viewer.getControls(viewer.scene.view.navigationMode);
+						//controls.zoomToLocation({x:0,y:0}, true, 1, true, function() {}, locationAnnotation.position);
 					});
-					*/
 					viewer.scene.annotations.add(locationAnnotation);
 				}
 
@@ -454,8 +455,8 @@ function ARTSTATION(THIS_REGION) {
 	        	viewer.fitToScreen();
 
                 //Make environment marker
-                var env_marker_geo = new THREE.CircleGeometry(50, 15);
-				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x000000});
+                var env_marker_geo = new THREE.CircleGeometry(100, 15);
+				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x8b0000});
 				var env_marker = new THREE.Mesh(env_marker_geo, env_marker_mat);
 				env_marker.name = "ARTSTATION_LocationMarker";
 				env_marker.position.set(coords[0], coords[1], 5);
@@ -1190,7 +1191,7 @@ function ARTSTATION(THIS_REGION) {
 
 	//MAP PROGRESS
 	function mapProgress(mapDetail, location_id) {
-		if (mapDetail == MAP_DETAIL_HIGH) {
+		if (mapDetail == MAP_DETAIL_HIGH || mapDetail == MAP_DETAIL_HIGHER) {
 			LOCATION[location_id].MapLoaded[1] = true;
 		}
 		else
@@ -1222,6 +1223,7 @@ function ARTSTATION(THIS_REGION) {
 			GLOBAL_LOAD_PERCENT += GLOBAL_LOAD_CALCULATOR[i];
 		}
 		$(".ARTSTATION_LoadPercent").text(Math.floor(GLOBAL_LOAD_PERCENT));
+		$(".ARTSTATION_LoadBar").width(GLOBAL_LOAD_PERCENT + "%");
 		if (GLOBAL_LOAD_PERCENT == 100) {
 			setState(IN_WORLDVIEW, false);
 			StateChangeUI(UI_RESET);
@@ -1564,11 +1566,15 @@ function ARTSTATION(THIS_REGION) {
 				var lon_tile_coords = tile2lon(tile_x, zoom);
                 var tile_pos = ConvertToUTM(lat_tile_coords, lon_tile_coords);
 
-                //Generate URL (new optional quality param)
-                var tile_url = mapType[0]+"/"+zoom+"/"+tile_x+"/"+tile_y+"."+mapType[1];
-                if (quality != 0) {
-                	//Supports 1.3, 1.5, 2, 2.6, 3 times the original resolution with wiki maps
-                	tile_url = mapType[0]+"/"+zoom+"/"+tile_x+"/"+tile_y+"@"+quality+"x."+mapType[1];
+                //Generate URLs (new optional quality param)
+                var tile_url = [];
+                for (var i=0; i<mapType[3].length; i++) {
+                	var subdomains = mapType[3];
+	                tile_url.push(mapType[0]+subdomains[i]+mapType[1]+"/"+zoom+"/"+tile_x+"/"+tile_y+"."+mapType[2]);
+	                if (quality != 0) {
+	                	//Supports 1.3, 1.5, 2, 2.6, 3 times the original resolution with wiki maps
+	                	tile_url.push(mapType[0]+subdomains[i]+mapType[1]+"/"+zoom+"/"+tile_x+"/"+tile_y+"@"+quality+"x."+mapType[2]);
+	                }
                 }
 
                 //Save tile info to array
@@ -1597,6 +1603,13 @@ function ARTSTATION(THIS_REGION) {
 		var thisMap = new THREE.Group();
 		thisMap.name = "ARTSTATION_BespokeMapGroup"; //Overwriten on env maps
 
+        //Override zoom if unsupported on map servers
+        if (mapType[1] != ".wikimedia.org/osm-intl") {
+        	if (zoom == MAP_DETAIL_HIGHER) {
+        		zoom = MAP_DETAIL_HIGH;
+        	}
+        }
+
 		//Tile "zoom-specific" configs
 		//As defined above, these are LOW (14), MEDIUM (16), HIGH (18) - please update here if they are changed above.
 		var tile = {
@@ -1614,6 +1627,13 @@ function ARTSTATION(THIS_REGION) {
 				quality: MAP_QUALITY_MEDIUM,
 				defaultOpacity: 0
 			},
+			17: {
+				size: 192, 
+				radius: 10,
+				mapOffset: new THREE.Vector3(100,-100, 49),
+				quality: MAP_QUALITY_EXTRA, //caps out at MEDIUM on mobile
+				defaultOpacity: 0
+			},
 			18: {
 				size: 96, 
 				radius: 10,
@@ -1629,25 +1649,88 @@ function ARTSTATION(THIS_REGION) {
 			tile[zoom].radius = 20;
 		}
 
+        //Override quality if unsupported on map servers
+        if (mapType[1] != ".wikimedia.org/osm-intl") {
+        	tile[zoom].quality = MAP_QUALITY_STANDARD;
+        }
+
 		//Get all map tiles for requested location
 		var mapList = tileList(gps, zoom, tile[zoom].radius, tile[zoom].quality, mapType);
 
 		//Create all map tile planes
 		var load_counter = 0;
 		for (var i=0; i<mapList.length; i++) {
-			var map_texture = new THREE.TextureLoader().load(mapList[i].TileURL, function (tex) {
+			var tileURLs = mapList[i].TileURL;
+			var map_texture = null;
+			map_texture = new THREE.TextureLoader().load(tileURLs[0], function (tex) {
 				//Loaded
 				load_counter++;
 				if (load_counter == mapList.length) {
 					mapProgress(zoom, location_id);
 				}
 			}, undefined, function(e) {
-				//A loading error occured
-				console.error("ARTSTATION: Map loading error occured. Reloading page to utilise cache.");
-				$(".ARTSTATION_LoadScreen").fadeOut(1000, function() {
-					location.reload();
-				});
-				//Ideally want to stop the loop here.
+				if (tileURLs[1] != null) {
+					console.warn("ARTSTATION: Dropping back to subdomain 2.");
+					map_texture = new THREE.TextureLoader().load(tileURLs[1], function (tex) {
+						//Loaded
+						load_counter++;
+						if (load_counter == mapList.length) {
+							mapProgress(zoom, location_id);
+						}
+					}, undefined, function(e) {
+						if (tileURLs[2] != null) {
+							console.warn("ARTSTATION: Dropping back to subdomain 3.");
+							map_texture = new THREE.TextureLoader().load(tileURLs[2], function (tex) {
+								//Loaded
+								load_counter++;
+								if (load_counter == mapList.length) {
+									mapProgress(zoom, location_id);
+								}
+							}, undefined, function(e) {
+								if (tileURLs[3] != null) {
+									console.warn("ARTSTATION: Dropping back to subdomain 4.");
+									map_texture = new THREE.TextureLoader().load(tileURLs[3], function (tex) {
+										//Loaded
+										load_counter++;
+										if (load_counter == mapList.length) {
+											mapProgress(zoom, location_id);
+										}
+									}, undefined, function(e) {
+										//A loading error occured
+										console.error("ARTSTATION: Map loading error occured. Reloading page to utilise cache.");
+										$(".ARTSTATION_LoadScreen").fadeOut(1000, function() {
+											location.reload();
+										});
+									});
+								}
+								else
+								{
+									//A loading error occured
+									console.error("ARTSTATION: Map loading error occured. Reloading page to utilise cache.");
+									$(".ARTSTATION_LoadScreen").fadeOut(1000, function() {
+										location.reload();
+									});
+								}
+							});
+						}
+						else
+						{
+							//A loading error occured
+							console.error("ARTSTATION: Map loading error occured. Reloading page to utilise cache.");
+							$(".ARTSTATION_LoadScreen").fadeOut(1000, function() {
+								location.reload();
+							});
+						}
+					});
+				}
+				else
+				{
+					//A loading error occured
+					console.error("ARTSTATION: Map loading error occured. Reloading page to utilise cache.");
+					$(".ARTSTATION_LoadScreen").fadeOut(1000, function() {
+						location.reload();
+					});
+				}
 			});
 			map_texture.crossOrigin = 'anonymous';
 			map_texture.wrapS = THREE.RepeatWrapping;
@@ -1673,7 +1756,7 @@ function ARTSTATION(THIS_REGION) {
 	function createMapForLocation(location_id) {
 		if (LOCATION[location_id].UUID != null) {
 			//Generate "environment view" map data for pointclouds
-			var envViewMap = createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_HIGH, MAP_TYPES[ENV_VIEW_MAP_TYPE], location_id);
+			var envViewMap = createMapAround(LOCATION[location_id].LocationGPS, MAP_DETAIL_HIGHER, MAP_TYPES[ENV_VIEW_MAP_TYPE], location_id);
 			envViewMap.name = "ARTSTATION_EnvViewMap_"+LOCATION[location_id].UUID;
 			envViewMap.visible = false; //only visible when location clicked (opacity too!)
 			viewer.scene.scene.add(envViewMap);
