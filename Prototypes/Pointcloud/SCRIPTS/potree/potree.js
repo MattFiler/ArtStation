@@ -15198,7 +15198,13 @@ void main() {
 						let delta = currDist / prevDist;
 						let resolvedRadius = this.scene.view.radius + this.radiusDelta;
 						let newRadius = resolvedRadius / delta;
-						this.radiusDelta = newRadius - resolvedRadius;
+
+						//MFILER-230818 START: Capping zoom on mobile
+						var newRadiusDelta = newRadius - resolvedRadius;
+						if (newRadiusDelta + this.scene.view.radius < 400 && newRadiusDelta + this.scene.view.radius > 50) {
+							this.radiusDelta = newRadiusDelta;
+						}
+						//MFILER-230818 END
 
 						this.stopTweens();
 					}
@@ -15265,7 +15271,7 @@ void main() {
 			this.didClickEnvironment = false; //MFILER-290618
 			this.clickedEnvironmentUUID = null; //MFILER-020718
 
-			let camera = this.scene.getActiveCamera();
+			let camera = this.scene.cameraP; //MFILER-230818: Was getActiveCamera();
 			
 			let I = Utils.getMousePointCloudIntersection(
 				mouse,
@@ -15277,9 +15283,20 @@ void main() {
 			if (I == null && mouseSubstitute == null) { //MFILER-060718
 				return;
 			}
+			this.hasSubstitudedPosition = false; //MFILER-230818
 			if (mouseSubstitute != null) {
-				I = mouseSubstitute; //MFILER-060718
+				I = {location: null, pointcloud: null}; //MFILER-230818
+				I.location = mouseSubstitute.pointcloud_center; //MFILER-060718 / 230818
+				//MFILER-230818 START
+				this.hasSubstitudedPosition = true;
+				for (var i=0; i<this.scene.pointclouds.length; i++) {
+					if (this.scene.pointclouds[i].position == mouseSubstitute.pointcloud_origin) {
+						I.pointcloud = this.scene.pointclouds[i];
+					}
+				}
+				//MFILER-230818 END
 			}
+			
 			this.didClickEnvironment = true; //MFILER-290618
 			this.clickedEnvironmentUUID = I.pointcloud.uuid; //MFILER-020718
 			this.focusPoint = I.location; //MFILER-060718

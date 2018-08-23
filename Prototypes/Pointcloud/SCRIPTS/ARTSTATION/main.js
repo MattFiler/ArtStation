@@ -11,7 +11,6 @@ function ARTSTATION(THIS_REGION) {
 	*/
 
 	//DEFINE SETTINGS
-	var HIDE_MAP_WHEN_TRACKING_VIDEO = false;
 	var USE_CESIUM = false;
 	var INFO_POPUP_IS_HIDDEN = false;
 	var NUMBER_OF_LOADED_LOCATIONS = 0;
@@ -28,7 +27,7 @@ function ARTSTATION(THIS_REGION) {
 	var REGION_INFO = [];
 	var DOLLY_COUNTER = [0,0];
 	var VIDEO_DOLLY_COUNTER = [0,0];
-	var MOUSE_CLICK_SAVE = null; //This is set later
+	var ENTRY_RADIUS_SAVE = null; //This is set later
 	var WORLD_VIEW_MAP = new THREE.Group();
 	WORLD_VIEW_MAP.name = "ARTSTATION_WorldViewMap";
 	var MAP_TILES = [{x: 0, y: 0}];
@@ -36,6 +35,7 @@ function ARTSTATION(THIS_REGION) {
 	var NUMBER_OF_LOCATIONS_LOADED = 0; //Updated dynamically
 	var GLOBAL_LOAD_CALCULATOR = [0,0]; //Only used for calculating percent
 	var GLOBAL_LOAD_PERCENT = 0; //Updated dynamically
+	var CURRENT_LOCATION = null; //Updated dynamically
 
 	//DEFINE WORLD STATES
 	var IN_WORLDVIEW = 0; //Using slow drag to look around controls
@@ -86,7 +86,7 @@ function ARTSTATION(THIS_REGION) {
 
 	//CONFIGURE POTREE VIEWER PER DEVICE
 	var device = new MobileDetect(window.navigator.userAgent);
-	var OPTIMISATION_PointBudget = 1000000;
+	var OPTIMISATION_PointBudget = 500000;
 	var OPTIMISATION_MinNodeSize = 100;
 	var OPTIMISATION_UseHQ = true;
 	if (device.mobile() != null) {
@@ -104,7 +104,6 @@ function ARTSTATION(THIS_REGION) {
 	viewer.setFOV(60);
 	viewer.setPointBudget(OPTIMISATION_PointBudget); 
 	viewer.setEDLEnabled(false);
-	viewer.setBackground(null); 
 	viewer.loadSettingsFromURL();
 	viewer.useHQ = OPTIMISATION_UseHQ;
 	viewer.setMinNodeSize(OPTIMISATION_MinNodeSize);
@@ -121,52 +120,9 @@ function ARTSTATION(THIS_REGION) {
 		$(".ARTSTATION_DeviceControls").html("<li><b>Environments</b></li><ul><li>Click to enter from world view.</li><li>Double click to move focus.</li><li>Use left mouse down to rotate camera.</li><li>Zoom in/out with the buttons in the bottom left.</li><li>Exit with the button in the bottom right.</li></ul><li><b>Videos</b></li><ul><li>Click a video marker to play.</li><li>Play/pause with the buttons in the bottom left.</li><li>Exit with the button in the bottom right.</li></ul>");
 	}
 
-	if (USE_CESIUM) {
-		//DEFINE CESIUM VIEWER & OS IMAGE PROVIDER
-		var imageryProvider = new Cesium.BingMapsImageryProvider({
-            url : 'https://dev.virtualearth.net',
-            mapStyle : Cesium.BingMapsStyle.ORDNANCE_SURVEY,
-            culture:"zh-Hans",
-            key:"Ao1f3-REClmcsxcvjPSHCX2Nu2dqScXYKf9YE4R-yd4WGEC_iOQigjGHkd--WNst"
-        });
-		window.cesiumViewer = new Cesium.Viewer('cesiumContainer', {
-			useDefaultRenderLoop: false,
-			animation: false,
-			baseLayerPicker : false,
-			fullscreenButton: false, 
-			geocoder: false,
-			homeButton: false,
-			infoBox: false,
-			sceneModePicker: false,
-			selectionIndicator: false,
-			timeline: false,
-			navigationHelpButton: false,
-			imageryProvider: imageryProvider
-		});
-
-		//CONFIGURE CESIUM VIEWER
-	    window.cesiumViewer.scene.fxaa = false;
-	    window.cesiumViewer.scene.sunBloom = false;
-	    window.cesiumViewer.scene.skyAtmosphere.show = false;
-	    window.cesiumViewer.scene.fog.enabled = false;
-	    window.cesiumViewer.shadows = false;
-	    window.cesiumViewer.terrainShadows = false;
-	    window.cesiumViewer.scene.shadowMap.enabled = false;
-		let cp = new Cesium.Cartesian3(4303414.154026048, 552161.235598733, 4660771.704035539);
-		cesiumViewer.camera.setView({
-			destination : cp,
-			orientation: {
-				heading : 10, 
-				pitch : -Cesium.Math.PI_OVER_TWO * 0.5, 
-				roll : 0.0 
-			}
-		});
-	}
-	else
-	{
-		viewer.scene.getActiveCamera().far = 5000*1000*1000;
-		viewer.setBackground("skybox");
-	}
+	//SETUP SKYBOX
+	viewer.scene.getActiveCamera().far = 5000*1000*1000;
+	viewer.setBackground("skybox");
 
 	//ENABLE DEMO PANEL
 	viewer.loadGUI(function() {
@@ -185,11 +141,11 @@ function ARTSTATION(THIS_REGION) {
 
 	/*
 		--
-		LOOP
+		RENDER & UPDATE
 		--
 	*/
 
-	//RENDER LOOP
+	//RENDER/UPDATE LOOP
 	function loop(timestamp){
 		requestAnimationFrame(loop);
 
@@ -197,76 +153,13 @@ function ARTSTATION(THIS_REGION) {
 			currentDevice = new MobileDetect(window.navigator.userAgent)
 		}
 
-		if (WORLD_STATE == IS_TRACKING_VIDEO) {
+		viewer.update(viewer.clock.getDelta(), timestamp);
+
+		if (WORLD_STATE == IS_TRACKING_VIDEO || WORLD_STATE == IN_ENVIRONMENT) {
 			$(".annotation").hide();
 		}
 
-		viewer.update(viewer.clock.getDelta(), timestamp);
-
 		viewer.render();
-
-		if(window.toMap !== undefined && USE_CESIUM){
-
-			{
-				let camera = viewer.scene.getActiveCamera();
-
-				let pPos		= new THREE.Vector3(0, 0, 0).applyMatrix4(camera.matrixWorld);
-				let pRight  = new THREE.Vector3(600, 0, 0).applyMatrix4(camera.matrixWorld);
-				let pUp		 = new THREE.Vector3(0, 600, 0).applyMatrix4(camera.matrixWorld);
-				let pTarget = viewer.scene.view.getPivot();
-
-				/*
-				console.log(pPos);
-				console.log(pRight);
-				console.log(pUp);
-				console.log(pTarget);
-				console.log("-----------------");
-				*/
-
-				let toCes = (pos) => {
-					let xy = [pos.x, pos.y];
-					let height = pos.z;
-					let deg = toMap.forward(xy);
-					let cPos = Cesium.Cartesian3.fromDegrees(...deg, height);
-
-					return cPos;
-				};
-
-				let cPos = toCes(pPos);
-				let cUpTarget = toCes(pUp);
-				let cTarget = toCes(pTarget);
-
-				let cDir = Cesium.Cartesian3.subtract(cTarget, cPos, new Cesium.Cartesian3());
-				let cUp = Cesium.Cartesian3.subtract(cUpTarget, cPos, new Cesium.Cartesian3());
-
-				cDir = Cesium.Cartesian3.normalize(cDir, new Cesium.Cartesian3());
-				cUp = Cesium.Cartesian3.normalize(cUp, new Cesium.Cartesian3());
-
-				cesiumViewer.camera.setView({
-					destination : cPos,
-					orientation : {
-						direction : cDir,
-						up : cUp
-					}
-				});
-				
-			}
-
-			let aspect = viewer.scene.getActiveCamera().aspect;
-			if(aspect < 1){
-				let fovy = Math.PI * (viewer.scene.getActiveCamera().fov / 180);
-				cesiumViewer.camera.frustum.fov = fovy;
-			}else{
-				let fovy = Math.PI * (viewer.scene.getActiveCamera().fov / 180);
-				let fovx = Math.atan(Math.tan(0.5 * fovy) * aspect) * 2
-				cesiumViewer.camera.frustum.fov = fovx;
-			}
-			
-		}
-
-		if (USE_CESIUM) {
-			cesiumViewer.render();
-		}
 	}
 	requestAnimationFrame(loop);
 
@@ -385,7 +278,7 @@ function ARTSTATION(THIS_REGION) {
 				let center = box.getCenter();
 
 				//Place environment marker
-				env_marker.position.set(center.x, center.y, 5);
+				env_marker.position.set(center.x, center.y, 10);
 				viewer.scene.scene.add(env_marker);
 
                 //Compile location data and save to global array
@@ -395,6 +288,7 @@ function ARTSTATION(THIS_REGION) {
 			        UUID: pointcloud.uuid,
 			        Z_Offset: locationData.z_offset,
 			        Position: center,
+			        BasePosition: pointcloud.position,
 			        LocationGPS: ConvertToCoordinates(center.x, center.y),
 			        LocationID: locationData.location_id,
 			        MapLoaded: [false, false],
@@ -403,9 +297,7 @@ function ARTSTATION(THIS_REGION) {
 			    var location_data_length = LOCATION.push(location_data);
 
 			    //Generate maps around location
-			    if (!USE_CESIUM) {
-					createMapForLocation(location_data_length - 1);
-			    }
+			    createMapForLocation(location_data_length - 1);
 
 			    //Add location name annotation
 			    {
@@ -415,7 +307,9 @@ function ARTSTATION(THIS_REGION) {
 					});
 					locationAnnotation.addEventListener('click', event => {
 						var controls = viewer.getControls(viewer.scene.view.navigationMode);
-						//controls.zoomToLocation({x:0,y:0}, true, 1, true, function() {}, locationAnnotation.position);
+						controls.zoomToLocation({x:0,y:0}, true, 1600, true, function() { enterLocation(); }, {pointcloud_origin: pointcloud.position, pointcloud_center: center});
+						$(".annotation").fadeOut(600, function(){ $(".annotation").hide(); });
+						StateChangeUI(UI_HIDE_WORLDVIEW);
 					});
 					viewer.scene.annotations.add(locationAnnotation);
 				}
@@ -459,7 +353,7 @@ function ARTSTATION(THIS_REGION) {
 				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x8b0000});
 				var env_marker = new THREE.Mesh(env_marker_geo, env_marker_mat);
 				env_marker.name = "ARTSTATION_LocationMarker";
-				env_marker.position.set(coords[0], coords[1], 5);
+				env_marker.position.set(coords[0], coords[1], 10);
 				viewer.scene.scene.add(env_marker);
 
 	            //Compile location data and save to global array
@@ -477,14 +371,12 @@ function ARTSTATION(THIS_REGION) {
 			    var location_data_length = LOCATION.push(location_data);
 
 			    //Generate map around location
-				if (!USE_CESIUM) {
-					createMapForLocation(location_data_length - 1);
-				}
+				createMapForLocation(location_data_length - 1);
 
 		    	//Add location name annotation
 			    {
 					let locationAnnotation = new Potree.Annotation({
-						position: new THREE.Vector3(coords[0], coords[1], locationData.z_offset),
+						position: new THREE.Vector3(coords[0], coords[1], z_offset),
 						title: locationData.name
 					});
 					locationAnnotation.addEventListener('click', event => {
@@ -515,6 +407,44 @@ function ARTSTATION(THIS_REGION) {
 				callback(locationData, location_data_length - 1);
 			});
 	    }
+	}
+
+	//ENTER LOCATION
+	function enterLocation() {
+		if (controls.didClickEnvironment) {
+			//Populate environment info popup & title
+			for (var i=0; i<LOCATION.length; i++) {
+				if (controls.clickedEnvironmentUUID == LOCATION[i].UUID) {
+					CURRENT_LOCATION = LOCATION[i];
+					ToggleInactivePointclouds(false);
+					populateEnvInfoPopup(i);
+					$(".ARTSTATION_LocationTitle").text(LOCATION[i].Name);
+				}
+			}
+
+			//Save camera config
+			ENTRY_RADIUS_SAVE = viewer.scene.view.radius;
+
+			//Configure camera
+        	controls.worldViewCameraConfig = false;
+			setState(IN_ENVIRONMENT);
+
+			//Swap maps
+			enterEnvMapMode(true);
+
+			//Setup videos
+			for (var i = 0; i < VIDEO.length; i++) {
+				if (LOCATION[VIDEO[i].LocationDataIndex].UUID == controls.clickedEnvironmentUUID) {
+					var marker_coords = ConvertToUTM(VIDEO[i].ImportedTrackData[0][0], VIDEO[i].ImportedTrackData[0][1]);
+                    var marker_position = new THREE.Vector3(marker_coords[0]+VIDEO[i].X_Offset, marker_coords[1]+VIDEO[i].Y_Offset, parseFloat(VIDEO[i].ImportedTrackData[0][3]) + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset - VIDEO[i].Z_Offset);
+                    VIDEO[i].VideoMarker.position.x = marker_position.x;
+                    VIDEO[i].VideoMarker.position.y = marker_position.y;
+                    VIDEO[i].VideoMarker.position.z = marker_position.z;
+					VIDEO[i].VideoMarker.visible = true;
+					new TWEEN.Tween(VIDEO[i].VideoMarker.material).to({opacity: 1}, 500).start();
+				}
+			}
+		}
 	}
 
 	//ADD ENVIRONMENT INFO
@@ -783,6 +713,9 @@ function ARTSTATION(THIS_REGION) {
 	function playVideo(video_id, reset=true) {
 		var video_player = document.getElementById(VIDEO[video_id].ElementID); 
 		if (reset) {
+			//Reset video time and play
+			video_player.currentTime = 0;
+    		video_player.play(); 
 			//Set title
 			$(".ARTSTATION_VideoTitle").text(VIDEO[video_id].VideoTitle);
 			//Playing video from the beginning
@@ -792,10 +725,6 @@ function ARTSTATION(THIS_REGION) {
 				TRACKING_CAMERA_OBJECT = VIDEO[video_id].VideoCamera;
 				TRACKING_CAMERA_IS_ENABLED = true;
 				setState(IS_TRACKING_VIDEO);
-
-				//Reset video time and play
-    			video_player.currentTime = 0;
-	    		video_player.play(); 
 			});
 		}
 		else
@@ -855,7 +784,6 @@ function ARTSTATION(THIS_REGION) {
 					TRACKING_CAMERA_OBJECT = null;
 					TRACKING_CAMERA_IS_ENABLED = false;
 					stopVideo(current_video);
-					//controls.zoomToLocation({x:0,y:0}, true, 1, true, function() {}, MOUSE_CLICK_SAVE);
 				});
 			}
 		}
@@ -904,38 +832,7 @@ function ARTSTATION(THIS_REGION) {
 	        mouse.x = position[0];
 	        mouse.y = position[1];
 			controls.zoomToLocation(mouse, true, 1600, true, function() {
-				if (controls.didClickEnvironment) {
-					//Populate environment info popup & title
-					for (var i=0; i<LOCATION.length; i++) {
-						if (controls.clickedEnvironmentUUID == LOCATION[i].UUID) {
-							populateEnvInfoPopup(i);
-							$(".ARTSTATION_LocationTitle").text(LOCATION[i].Name);
-						}
-					}
-
-					//Save camera config
-					MOUSE_CLICK_SAVE = controls.clickRawReturn;
-
-					//Configure camera
-		        	controls.worldViewCameraConfig = false;
-					setState(IN_ENVIRONMENT);
-
-					//Swap maps
-					enterEnvMapMode(true);
-
-					//Setup videos
-					for (var i = 0; i < VIDEO.length; i++) {
-						if (LOCATION[VIDEO[i].LocationDataIndex].UUID == controls.clickedEnvironmentUUID) {
-							var marker_coords = ConvertToUTM(VIDEO[i].ImportedTrackData[0][0], VIDEO[i].ImportedTrackData[0][1]);
-	                        var marker_position = new THREE.Vector3(marker_coords[0]+VIDEO[i].X_Offset, marker_coords[1]+VIDEO[i].Y_Offset, parseFloat(VIDEO[i].ImportedTrackData[0][3]) + LOCATION[VIDEO[i].LocationDataIndex].Z_Offset - VIDEO[i].Z_Offset);
-	                        VIDEO[i].VideoMarker.position.x = marker_position.x;
-	                        VIDEO[i].VideoMarker.position.y = marker_position.y;
-	                        VIDEO[i].VideoMarker.position.z = marker_position.z;
-							VIDEO[i].VideoMarker.visible = true;
-        					new TWEEN.Tween(VIDEO[i].VideoMarker.material).to({opacity: 1}, 500).start();
-						}
-					}
-				}
+				enterLocation();
 			});
 			if (controls.didClickEnvironment) {
 				//Fade out name annotation during transition
@@ -988,24 +885,28 @@ function ARTSTATION(THIS_REGION) {
 	//MOVE BACK TO "WORLD VIEW"
 	var controls = viewer.getControls(viewer.scene.view.navigationMode);
 	function ReturnToWorldView() {
-		if (WORLD_STATE == IN_ENVIRONMENT) {
+		//if (WORLD_STATE == IN_ENVIRONMENT) {
 			//Move camera to world view
 			viewer.scene.view.pitch = -0.7853981633974672;
 			viewer.fitToScreen(1, 2600);
 			DOLLY_COUNTER = [0,0]; //Reset zoom limits
+
+			//Toggle pointcloud visibility
+			ToggleInactivePointclouds(true);
 
 			//Fade out all video markers
 			ToggleMarkerVisibility(false, true);
 
 			//Swap maps
 			enterEnvMapMode(false);
+			CURRENT_LOCATION = null;
 
 			//Fade annotations back in and configure controls for world view
+			setState(IN_WORLDVIEW); 
 			$(".annotation").fadeIn(600, "swing", function() { 
-				setState(IN_WORLDVIEW); 
 				controls.worldViewCameraConfig = true;
 			});
-		}
+		//}
 	}
 
 	//DOLLY ZOOM IN
@@ -1250,17 +1151,6 @@ function ARTSTATION(THIS_REGION) {
 		//Update state
 		WORLD_STATE = newState;
 
-		//Hide map in tracking view
-		if (WORLD_STATE == IS_TRACKING_VIDEO && HIDE_MAP_WHEN_TRACKING_VIDEO) {
-			viewer.setBackground("gradient");
-		}
-		else 
-		{
-			if (USE_CESIUM) {
-				viewer.setBackground("null");
-			}
-		}
-
 		//Basic UI updates
 		if (WORLD_STATE == IN_ENVIRONMENT) {
 			//StateChangeUI(UI_HIDE_WORLDVIEW); - now handled elsewhere
@@ -1332,6 +1222,20 @@ function ARTSTATION(THIS_REGION) {
 		}
 	}
 
+	//TOGGLE VISIBILITY OF INACTIVE POINTCLOUDS
+	function ToggleInactivePointclouds(shouldShow) {
+		for (var i=0; i<viewer.scene.pointclouds.length; i++) {
+			if (viewer.scene.pointclouds[i].uuid != CURRENT_LOCATION.UUID) {
+				viewer.scene.pointclouds[i]._visible = shouldShow;
+			}
+		}
+		for (var i=0; i<LOCATION.length; i++) {
+			if (LOCATION[i].Marker != CURRENT_LOCATION.Marker) {
+				LOCATION[i].Marker.visible = shouldShow;
+			}
+		}
+	}
+
 	//ENTER VIDEO TRACKING MODE
 	function EnterVideoTrackMode(video_id, isEnteringVideo, callback=function(){}, speedIn=500, speedOut=1000, speedDelay=500) {
 		var CAMERA_POSITION = new THREE.Vector3();
@@ -1381,6 +1285,17 @@ function ARTSTATION(THIS_REGION) {
         	//Position camera
 		    VIDEO[video_id].TransitionCamera.position.copy(viewer.scene.getActiveCamera().position);
 			VIDEO[video_id].TransitionCamera.rotation.copy(viewer.scene.getActiveCamera().rotation);
+
+			//Set transition camera as active
+			TRACKING_CAMERA_OBJECT = VIDEO[video_id].TransitionCamera;
+			TRACKING_CAMERA_IS_ENABLED = true;
+
+			//Reset main camera to initial environment position
+			viewer.scene.view.pitch = -0.7853981633974672;
+			viewer.scene.view.radius = ENTRY_RADIUS_SAVE;
+			DOLLY_COUNTER = [0,0];
+			viewer.controls.stop();
+			controls.zoomToLocation({x:0,y:0}, false, 1000, true, function() {}, {pointcloud_origin: CURRENT_LOCATION.BasePosition, pointcloud_center: CURRENT_LOCATION.Position});
 		}
 		else
 		{
@@ -1404,11 +1319,11 @@ function ARTSTATION(THIS_REGION) {
         	//Position camera
 		    VIDEO[video_id].VideoCamera.getWorldPosition(VIDEO[video_id].TransitionCamera.position);
 		    VIDEO[video_id].TransitionCamera.rotation.setFromQuaternion(VIDEO[video_id].VideoCamera.getWorldQuaternion());
-		}
 
-		//Set transition camera as active
-		TRACKING_CAMERA_OBJECT = VIDEO[video_id].TransitionCamera;
-		TRACKING_CAMERA_IS_ENABLED = true;
+		    //Set transition camera as active
+			TRACKING_CAMERA_OBJECT = VIDEO[video_id].TransitionCamera;
+			TRACKING_CAMERA_IS_ENABLED = true;
+		}
 
 		//Move camera to desired position
 		var TRANSITION_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_id].TransitionCamera.position).to({x: CAMERA_POSITION.x, y: CAMERA_POSITION.y, z: CAMERA_POSITION.z}, speedIn+speedOut+speedDelay); //alt viewer.scene.getActiveCamera().position
@@ -1416,9 +1331,6 @@ function ARTSTATION(THIS_REGION) {
 		TRANSITION_TWEEN_POSITION.onStart(function(){
 			if (isEnteringVideo) { StateChangeUI(UI_HIDE_ENVIRONMENT); } else { StateChangeUI(UI_HIDE_VIDEO); }
 			TRANSITION_TWEEN_ROTATION.start();
-		});
-		TRANSITION_TWEEN_POSITION.onUpdate(function(){
-			$(".annotation").hide();
 		});
 		TRANSITION_TWEEN_POSITION.onComplete(function(){
 			if (isEnteringVideo) { StateChangeUI(UI_SHOW_VIDEO); } else { StateChangeUI(UI_SHOW_ENVIRONMENT); }
@@ -1457,10 +1369,10 @@ function ARTSTATION(THIS_REGION) {
 					//Replace location ids with positions
 					for (var x=0; x<LOCATION.length;x++) {
 						if (LOCATION[x].LocationID == line_data[i].from) {
-							line_data[i].from = LOCATION[x].Position;
+							line_data[i].from = new THREE.Vector3(LOCATION[x].Position.x, LOCATION[x].Position.y, 5);
 						}
 						if (LOCATION[x].LocationID == line_data[i].to) {
-							line_data[i].to = LOCATION[x].Position;
+							line_data[i].to = new THREE.Vector3(LOCATION[x].Position.x, LOCATION[x].Position.y, 5);
 						}
 					}
 					//Create line
