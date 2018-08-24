@@ -11,7 +11,6 @@ function ARTSTATION(THIS_REGION) {
 	*/
 
 	//DEFINE SETTINGS
-	var USE_CESIUM = false;
 	var INFO_POPUP_IS_HIDDEN = false;
 	var NUMBER_OF_LOADED_LOCATIONS = 0;
 	var DEFAULT_CAMERA_OFFSET_DESKTOP = 30;
@@ -107,7 +106,7 @@ function ARTSTATION(THIS_REGION) {
 	viewer.loadSettingsFromURL();
 	viewer.useHQ = OPTIMISATION_UseHQ;
 	viewer.setMinNodeSize(OPTIMISATION_MinNodeSize);
-	console.log("Optimisation result:\nPOINT BUDGET - " + OPTIMISATION_PointBudget + "\nMIN NODE SIZE - " + OPTIMISATION_MinNodeSize + "\nSHOULD USE HQ - " + OPTIMISATION_UseHQ);
+	//console.log("Optimisation result:\nPOINT BUDGET - " + OPTIMISATION_PointBudget + "\nMIN NODE SIZE - " + OPTIMISATION_MinNodeSize + "\nSHOULD USE HQ - " + OPTIMISATION_UseHQ);
 
 	//UPDATE CONTROL LIST
 	if (device.mobile() != null) {
@@ -250,163 +249,139 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//LOAD LOCATION POINTCLOUD INTO VIEWER
-	//Needs refactoring...
-	function loadLocation(locationData, callback=function(){}) {
+	function loadLocation(locationData, callback) {
+		var filename = "default";
+		var env_marker_radius = 100;
 		if (locationData.is_pointcloud) {
-	        Potree.loadPointCloud("http://"+ASSET_URL+"/POINTCLOUDS/"+locationData.filename+"/cloud.js", locationData.filename, e => {
-        		//Position and configure pointcloud and add to scene
-                let pointcloud = e.pointcloud;
-                let material = pointcloud.material;
-                pointcloud.position.z = locationData.z_offset;
-                viewer.scene.addPointCloud(pointcloud);
-                material.pointColorType = Potree.PointColorType.RGB;
-                material.size = 1;
-                material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-                material.shape = Potree.PointShape.CIRCLE;
-                viewer.fitToScreen();
+			filename = locationData.filename;
+			env_marker_radius = 300;
+		}
+		Potree.loadPointCloud("http://"+ASSET_URL+"/POINTCLOUDS/"+filename+"/cloud.js", filename, function(e) {
+			//Simplify namecalls
+			var pointcloud = e.pointcloud;
+			var material = pointcloud.material;
 
-                //Make environment marker
-                var env_marker_geo = new THREE.CircleGeometry(300, 32);
-				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x8b0000});
-				var env_marker = new THREE.Mesh(env_marker_geo, env_marker_mat);
-				env_marker.name = "ARTSTATION_LocationMarker";
+			//Position correctly
+			var z_offset = locationData.z_offset;
+			if (z_offset == undefined) { z_offset = 0; }
+			if (locationData.is_pointcloud) {
+				pointcloud.position.z = z_offset;
+			}
+			else
+			{
+				//"Non-pointcloud" locations need manual GPS positioning as well as Z override
+				var coords = ConvertToUTM(locationData.gps[0], locationData.gps[1]);
+				pointcloud.position.set(coords[0], coords[1], z_offset);
+			}
 
-			    //Find centre of pointcloud for annotation position 
-			    pointcloud.updateMatrixWorld();
-				let box = pointcloud.pcoGeometry.tightBoundingBox.clone();
+			//Setup material, add to scene, realign camera
+			viewer.scene.addPointCloud(pointcloud);
+			material.pointColorType = Potree.PointColorType.RGB;
+		    material.size = 1;
+		    material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+		    material.shape = Potree.PointShape.CIRCLE;
+		    viewer.fitToScreen();
+
+		    //Make environment marker
+		    var env_marker_geo = new THREE.CircleGeometry(env_marker_radius, 32);
+			var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x8b0000});
+			var env_marker = new THREE.Mesh(env_marker_geo, env_marker_mat);
+			env_marker.name = "ARTSTATION_LocationMarker";
+
+			//Position environment marker & update location data
+			var pointcloud_uuid = pointcloud.uuid;
+			var pointcloud_center_position = null;
+			var pointcloud_gps = null;
+			var pointcloud_map_load_check = [];
+			if (locationData.is_pointcloud) {
+				//Find pointcloud centre & position there
+				pointcloud.updateMatrixWorld();
+				var box = pointcloud.pcoGeometry.tightBoundingBox.clone();
 				box.applyMatrix4(pointcloud.matrixWorld);
-				let center = box.getCenter();
+				pointcloud_center_position = box.getCenter();
+				env_marker.position.set(pointcloud_center_position.x, pointcloud_center_position.y, 10);
 
-				//Place environment marker
-				env_marker.position.set(center.x, center.y, 10);
-				viewer.scene.scene.add(env_marker);
+				//Convert position to GPS for compatibility
+				pointcloud_gps = ConvertToCoordinates(pointcloud_center_position.x, pointcloud_center_position.y);
+				pointcloud_map_load_check = [false, false];
+			}
+			else
+			{
+				//Place marker by GPS
+				env_marker.position.set(coords[0], coords[1], 10);
 
-                //Compile location data and save to global array
-			    var location_data = {
-			        Name: locationData.name,
-			        FileName: locationData.filename,
-			        UUID: pointcloud.uuid,
-			        Z_Offset: locationData.z_offset,
-			        Position: center,
-			        BasePosition: pointcloud.position,
-			        LocationGPS: ConvertToCoordinates(center.x, center.y),
-			        LocationID: locationData.location_id,
-			        MapLoaded: [false, false],
-			        Marker: env_marker
-			    };
-			    var location_data_length = LOCATION.push(location_data);
+				//Update location data & others appropriately
+				pointcloud_uuid = null;
+				pointcloud_center_position = new THREE.Vector3(coords[0], coords[1], z_offset);
+				pointcloud_gps = locationData.gps;
+				pointcloud_map_load_check = [false];
+			}
+			viewer.scene.scene.add(env_marker);
 
-			    //Generate maps around location
-			    createMapForLocation(location_data_length - 1);
+			//Save location data to global array
+			var location_data = {
+				Name: locationData.name,
+				FileName: filename,
+				UUID: pointcloud_uuid, 
+		        Z_Offset: locationData.z_offset,
+		        Position: pointcloud_center_position,
+		        BasePosition: pointcloud.position, //Unused for "non-pointclouds"
+		        LocationGPS: pointcloud_gps,
+		        LocationID: locationData.location_id,
+		        MapLoaded: pointcloud_map_load_check,
+		        Marker: env_marker
+			};
+		    var location_data_length = LOCATION.push(location_data);
 
-			    //Add location name annotation
-			    {
-					let locationAnnotation = new Potree.Annotation({
-						position: center,
-						title: locationData.name
-					});
-					locationAnnotation.addEventListener('click', event => {
+		    //Generate maps around location
+		    createMapForLocation(location_data_length - 1);
+
+			//Add location name annotation
+		    {
+				var locationAnnotation = new Potree.Annotation({
+					position: pointcloud_center_position,
+					title: locationData.name
+				});
+				if (locationData.is_pointcloud) {
+					//Enter pointcloud on annotation click
+					locationAnnotation.addEventListener('click', function(event) {
 						var controls = viewer.getControls(viewer.scene.view.navigationMode);
 						controls.zoomToLocation({x:0,y:0}, true, 1600, true, function() { enterLocation(); }, {pointcloud_origin: pointcloud.position, pointcloud_center: center});
 						$(".annotation").fadeOut(600, function(){ $(".annotation").hide(); });
 						StateChangeUI(UI_HIDE_WORLDVIEW);
 					});
-					viewer.scene.annotations.add(locationAnnotation);
 				}
-
-				Potree.measureTimings = true;
-				
-				//Zone 30U covers most of England and Wales so we should be fine with this - geoutm.js can always calculate for us.
-				let pointcloudProjection = "+proj=utm +zone=30 +ellps=GRS80 +datum=NAD83 +units=m +no_defs";
-				let mapProjection = proj4.defs("WGS84");
-
-				window.toMap = proj4(pointcloudProjection, mapProjection);
-				window.toScene = proj4(mapProjection, pointcloudProjection);
-				
+				else
 				{
-					let bb = viewer.getBoundingBox();
-
-					let minWGS84 = proj4(pointcloudProjection, mapProjection, bb.min.toArray());
-					let maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
-				}
-
-				locationProgress(1);
-
-				//Run callback to load videos and add env data
-				callback(locationData, location_data_length - 1);
-	        });
-	    }
-	    else
-	    {
-	        Potree.loadPointCloud("http://"+ASSET_URL+"/POINTCLOUDS/default/cloud.js", "default", e => {
-	        	//Position pointcloud correctly
-	        	var z_offset = locationData.z_offset;
-	        	if (z_offset == undefined) { z_offset = 0; }
-	            var coords = ConvertToUTM(locationData.gps[0], locationData.gps[1]);
-	        	let pointcloud = e.pointcloud;
-	        	pointcloud.position.set(coords[0], coords[1], z_offset);
-	        	viewer.scene.addPointCloud(pointcloud);
-	        	viewer.fitToScreen();
-
-                //Make environment marker
-                var env_marker_geo = new THREE.CircleGeometry(100, 15);
-				var env_marker_mat = new THREE.MeshBasicMaterial({color: 0x8b0000});
-				var env_marker = new THREE.Mesh(env_marker_geo, env_marker_mat);
-				env_marker.name = "ARTSTATION_LocationMarker";
-				env_marker.position.set(coords[0], coords[1], 10);
-				viewer.scene.scene.add(env_marker);
-
-	            //Compile location data and save to global array
-			    var location_data = {
-			        Name: locationData.name,
-				    FileName: null,
-			        UUID: null, //We do have a UUID here, but it isn't needed. Setting to null will let future scripts know we're defaulting.
-			        Z_Offset: locationData.z_offset,
-			        Position: new THREE.Vector3(coords[0], coords[1], z_offset),
-				    LocationGPS: locationData.gps,
-			        LocationID: locationData.location_id,
-			        MapLoaded: [false],
-			        Marker: env_marker
-			    };
-			    var location_data_length = LOCATION.push(location_data);
-
-			    //Generate map around location
-				createMapForLocation(location_data_length - 1);
-
-		    	//Add location name annotation
-			    {
-					let locationAnnotation = new Potree.Annotation({
-						position: new THREE.Vector3(coords[0], coords[1], z_offset),
-						title: locationData.name
+					//Show info popup on annotation click
+					locationAnnotation.addEventListener('click', function(event) {
+						clickedEnvironmentMarker(location_data_length - 1);
 					});
-					locationAnnotation.addEventListener('click', event => {
-						clickedEnvironmentMarker(location_data_length - 1); //On click show info popup
-					});
-					viewer.scene.annotations.add(locationAnnotation);
 				}
+				viewer.scene.annotations.add(locationAnnotation);
+			}
 
-				Potree.measureTimings = true;
-				
-				//Zone 30U covers most of England and Wales so we should be fine with this - geoutm.js can always calculate for us.
-				let pointcloudProjection = "+proj=utm +zone=30 +ellps=GRS80 +datum=NAD83 +units=m +no_defs";
-				let mapProjection = proj4.defs("WGS84");
+		    Potree.measureTimings = true;
+			
+			//Zone 30U covers most of England and Wales so we should be fine with this - geoutm.js can always calculate for us.
+			var pointcloudProjection = "+proj=utm +zone=30 +ellps=GRS80 +datum=NAD83 +units=m +no_defs";
+			var mapProjection = proj4.defs("WGS84");
 
-				window.toMap = proj4(pointcloudProjection, mapProjection);
-				window.toScene = proj4(mapProjection, pointcloudProjection);
-				
-				{
-					let bb = viewer.getBoundingBox();
+			window.toMap = proj4(pointcloudProjection, mapProjection);
+			window.toScene = proj4(mapProjection, pointcloudProjection);
+			
+			{
+				var bb = viewer.getBoundingBox();
 
-					let minWGS84 = proj4(pointcloudProjection, mapProjection, bb.min.toArray());
-					let maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
-				}
+				var minWGS84 = proj4(pointcloudProjection, mapProjection, bb.min.toArray());
+				var maxWGS84 = proj4(pointcloudProjection, mapProjection, bb.max.toArray());
+			}
 
-				locationProgress(1);
+			locationProgress(1);
 
-				//Run callback to add env data
-				callback(locationData, location_data_length - 1);
-			});
-	    }
+			//Run callback to load env data
+			callback(locationData, location_data_length - 1);
+		});
 	}
 
 	//ENTER LOCATION
@@ -427,7 +402,7 @@ function ARTSTATION(THIS_REGION) {
 
 			//Configure camera
         	controls.worldViewCameraConfig = false;
-			setState(IN_ENVIRONMENT);
+			setState(IN_ENVIRONMENT, true);
 
 			//Swap maps
 			enterEnvMapMode(true);
@@ -448,7 +423,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//ADD ENVIRONMENT INFO
-	function addEnvInfo(locationIndex=999,title="Placeholder",subtitle="This location has supplied no information, contact the webmaster!",listItems=["No information.", "Please contact admin."]) {
+	function addEnvInfo(locationIndex,title,subtitle,listItems) {
 		//Format the list for HTML
 		var listCompile = "";
 		for (var i=0;i<listItems.length;i++) {
@@ -467,7 +442,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//POPULATE ENVIRONMENT INFO POPUP
-	function populateEnvInfoPopup(locationIndex=999) {
+	function populateEnvInfoPopup(locationIndex) {
 		$(".modal-title").html(LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].Title);
 		$(".modal-body").html("<b>" + LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].Subtitle + "</b><br><br>" + LOCATION_INFO[LOCATION[locationIndex].LocationInfoIndex].List);
 	}
@@ -492,7 +467,7 @@ function ARTSTATION(THIS_REGION) {
 	*/
 
 	//CREATE A VIDEO IN WORLD
-	function createVideo(locationIndex, videoName, videoTitle, xOffset=0, yOffset=0, zOffset=0) {
+	function createVideo(locationIndex, videoName, videoTitle, xOffset, yOffset, zOffset) {
 	    //Create HTML video element to draw texture from
 	    var video_element = document.createElement("video");
 	    video_element.src = "http://"+ASSET_URL+"/VIDEOS/"+LOCATION[locationIndex].FileName+"/"+videoName;
@@ -676,14 +651,14 @@ function ARTSTATION(THIS_REGION) {
             	var VIDEO_TWEEN_POSITION = new TWEEN.Tween(VIDEO[video_index].VideoParent.position).to(VIDEO_NEW_POSITION, TWEEN_TIME);
             	var VIDEO_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_index].VideoMesh.rotation).to({x: GIMBAL_ROTATION.x, y: 0, z: 0}, TWEEN_TIME);
             	var PARENT_TWEEN_ROTATION = new TWEEN.Tween(VIDEO[video_index].VideoParent.rotation).to({x: 0, y: 0, z: GIMBAL_ROTATION.y}, TWEEN_TIME);
-            	VIDEO_TWEEN_POSITION.onStart(() => {
+            	VIDEO_TWEEN_POSITION.onStart(function() {
             		VIDEO_TWEEN_ROTATION.start();
             		PARENT_TWEEN_ROTATION.start();
 
             		controls.isTransitioning = true;
             		camera_is_locked = true;
 				});
-				VIDEO_TWEEN_POSITION.onComplete(() => {
+				VIDEO_TWEEN_POSITION.onComplete(function() {
 					//If exit was requested, perform
 					if (!VIDEO[video_index].LockCamera && camera_is_locked) {
 						stopVideo(video_index);
@@ -710,7 +685,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//PLAY VIDEO
-	function playVideo(video_id, reset=true) {
+	function playVideo(video_id, reset) {
 		var video_player = document.getElementById(VIDEO[video_id].ElementID); 
 		if (reset) {
 			//Reset video time and play
@@ -724,7 +699,7 @@ function ARTSTATION(THIS_REGION) {
 				VIDEO[video_id].LockCamera = true;
 				TRACKING_CAMERA_OBJECT = VIDEO[video_id].VideoCamera;
 				TRACKING_CAMERA_IS_ENABLED = true;
-				setState(IS_TRACKING_VIDEO);
+				setState(IS_TRACKING_VIDEO, true);
 			});
 		}
 		else
@@ -741,7 +716,7 @@ function ARTSTATION(THIS_REGION) {
 		video_player.pause();
 		video_player.currentTime = 0;
 	    VIDEO[video_id].VideoMesh.visible = false;
-		ToggleMarkerVisibility(true, false);
+		ToggleMarkerVisibility(true, false, 500);
 	    if (device.mobile() == null) { VIDEO[video_id].VideoCamera.position.z = DEFAULT_CAMERA_OFFSET_DESKTOP; } else { VIDEO[video_id].VideoCamera.position.z = DEFAULT_CAMERA_OFFSET_MOBILE; } 
 		VIDEO_DOLLY_COUNTER = [0,0]; 
 	}
@@ -778,7 +753,7 @@ function ARTSTATION(THIS_REGION) {
 				EnterVideoTrackMode(i, false, function() {
 					playVideo(current_video, false);
 					var controls = viewer.getControls(viewer.scene.view.navigationMode);
-					setState(IN_ENVIRONMENT);
+					setState(IN_ENVIRONMENT, true);
 					controls.isTransitioning = false;
 					VIDEO[current_video].LockCamera = false;
 					TRACKING_CAMERA_OBJECT = null;
@@ -877,7 +852,7 @@ function ARTSTATION(THIS_REGION) {
 
 			//Play the video for the marker we hit
 			if (video_id != null) {
-				playVideo(video_id);
+				playVideo(video_id, true);
 			}
 		}
 	}
@@ -895,14 +870,14 @@ function ARTSTATION(THIS_REGION) {
 			ToggleInactivePointclouds(true);
 
 			//Fade out all video markers
-			ToggleMarkerVisibility(false, true);
+			ToggleMarkerVisibility(false, true, 500);
 
 			//Swap maps
 			enterEnvMapMode(false);
 			CURRENT_LOCATION = null;
 
 			//Fade annotations back in and configure controls for world view
-			setState(IN_WORLDVIEW); 
+			setState(IN_WORLDVIEW, true); 
 			$(".annotation").fadeIn(600, "swing", function() { 
 				controls.worldViewCameraConfig = true;
 			});
@@ -1084,7 +1059,7 @@ function ARTSTATION(THIS_REGION) {
 	*/
 
 	//LOCATION PROGRESS
-	function locationProgress(updateBy=0) {
+	function locationProgress(updateBy) {
 		NUMBER_OF_LOCATIONS_LOADED += updateBy;
 		var load_percent = (NUMBER_OF_LOCATIONS_LOADED / NUMBER_OF_LOCATIONS) * 100;
 		globalProgress(load_percent, 0);
@@ -1128,7 +1103,7 @@ function ARTSTATION(THIS_REGION) {
 		if (GLOBAL_LOAD_PERCENT == 100) {
 			setState(IN_WORLDVIEW, false);
 			StateChangeUI(UI_RESET);
-			ToggleMarkerVisibility(false,false);
+			ToggleMarkerVisibility(false,false, 500);
 
 			$("#ARTSTATION_ControlPanel").modal("show");
 			$(".potree_container").fadeIn();
@@ -1143,7 +1118,7 @@ function ARTSTATION(THIS_REGION) {
 	*/
 
 	//CHANGE STATE
-	function setState(newState, shouldFadeOut = true) {
+	function setState(newState, shouldFadeOut) {
 		if (WORLD_STATE == newState) {
 			return;
 		}
@@ -1201,7 +1176,7 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//TOGGLE VISIBILITY OF ALL VIDEO MARKERS
-	function ToggleMarkerVisibility(shouldShow, shouldFade, customTime=500) {
+	function ToggleMarkerVisibility(shouldShow, shouldFade, customTime) {
 		var newOpacity = 0;
 		if (shouldShow) { newOpacity = 1; }
 		var fadeTime = 0;
@@ -1237,7 +1212,10 @@ function ARTSTATION(THIS_REGION) {
 	}
 
 	//ENTER VIDEO TRACKING MODE
-	function EnterVideoTrackMode(video_id, isEnteringVideo, callback=function(){}, speedIn=500, speedOut=1000, speedDelay=500) {
+	function EnterVideoTrackMode(video_id, isEnteringVideo, callback) {
+		var speedIn=500;
+		var speedOut=1000;
+		var speedDelay=500;
 		var CAMERA_POSITION = new THREE.Vector3();
 		var CAMERA_ROTATION = new THREE.Euler();
 		if (isEnteringVideo) {
@@ -1377,7 +1355,7 @@ function ARTSTATION(THIS_REGION) {
 					}
 					//Create line
 					{ 
-						let line = new Potree.Measure();
+						var line = new Potree.Measure();
 						line.addMarker(line_data[i].from);
 						line.addMarker(line_data[i].to);
 						for (var x=0; x<line.spheres.length; x++) {
@@ -1582,7 +1560,7 @@ function ARTSTATION(THIS_REGION) {
 				}
 			}, undefined, function(e) {
 				if (tileURLs[1] != null) {
-					console.warn("ARTSTATION: Dropping back to subdomain 2.");
+					//console.warn("ARTSTATION: Dropping back to subdomain 2.");
 					map_texture = new THREE.TextureLoader().load(tileURLs[1], function (tex) {
 						//Loaded
 						load_counter++;
@@ -1591,7 +1569,7 @@ function ARTSTATION(THIS_REGION) {
 						}
 					}, undefined, function(e) {
 						if (tileURLs[2] != null) {
-							console.warn("ARTSTATION: Dropping back to subdomain 3.");
+							//console.warn("ARTSTATION: Dropping back to subdomain 3.");
 							map_texture = new THREE.TextureLoader().load(tileURLs[2], function (tex) {
 								//Loaded
 								load_counter++;
@@ -1600,7 +1578,7 @@ function ARTSTATION(THIS_REGION) {
 								}
 							}, undefined, function(e) {
 								if (tileURLs[3] != null) {
-									console.warn("ARTSTATION: Dropping back to subdomain 4.");
+									//console.warn("ARTSTATION: Dropping back to subdomain 4.");
 									map_texture = new THREE.TextureLoader().load(tileURLs[3], function (tex) {
 										//Loaded
 										load_counter++;

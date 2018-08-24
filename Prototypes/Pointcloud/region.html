@@ -14,10 +14,10 @@
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/openlayers3/ol.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/spectrum/spectrum.css">
 	<link rel="stylesheet" type="text/css" href="SCRIPTS/jstree/themes/mixed/style.css">
-	<link rel="stylesheet" type="text/css" href="SCRIPTS/Cesium/Widgets/CesiumWidget/CesiumWidget.css">
 
 	<!-- ARTSTATION Styles -->
-	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css?4">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css">
+	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/loading_spinner.css">
 </head>
 
 <body>
@@ -42,7 +42,7 @@
 	<script src="SCRIPTS/mobile-detect/mobile-detect.js"></script>
 
 	<!-- ARTSTATION Scripts -->
-	<script src="SCRIPTS/ARTSTATION/main.js?4"></script>
+	<script src="SCRIPTS/ARTSTATION/main.min.js"></script>
 
 	<!-- ARTSTATION JavaScript Warning -->
 	<noscript>
@@ -61,6 +61,22 @@
 			</div>
 			<div class="ARTSTATION_LoadScreenText">
 				<b>LOADING <span class="ARTSTATION_LoadPercent">0</span>%</b>
+				<div class="lds-css ng-scope">
+					<div class="lds-spinner" style="100%;height:100%">
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+						<div></div>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -161,7 +177,13 @@
 		$(document).ready(function() {
 			var url_param = window.location.search.substring(1);
 			var param_split = url_param.split("=");
-			ARTSTATION(param_split[1]);
+			try {
+				ARTSTATION(param_split[1]);
+			}
+			catch (error) {
+				$(".ARTSTATION_LoadScreen").fadeIn(1000);
+				$(".ARTSTATION_LoadScreenText").html("<b>UNSUPPORTED BROWSER</b>");
+			}
 		});
 	</script>
 </body>
