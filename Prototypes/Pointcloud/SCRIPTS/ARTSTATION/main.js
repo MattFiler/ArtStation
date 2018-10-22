@@ -17,7 +17,7 @@ function ARTSTATION(THIS_REGION) {
 	var DEFAULT_CAMERA_OFFSET_MOBILE = 50;
 
 	//DEFINE URLS
-	var ASSET_URL = "assets.artstation.mattfiler.co.uk";
+	var ASSET_URL = "filepost.artstation.org.uk/ASSETS";
 
 	//DEFINE DATA STORES
 	var VIDEO = [];

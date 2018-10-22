@@ -4,78 +4,32 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 	<title>ARTSTATION</title>
-
-	<!-- Third-Party Styles -->
-	<link rel="stylesheet" type="text/css" href="SCRIPTS/bootswatch/bootstrap.css">
-
-	<!-- ARTSTATION Styles -->
-	<link rel="stylesheet" type="text/css" href="SCRIPTS/ARTSTATION/main.css">
+    
+    <style>
+        body { 
+            margin: 0;
+            background: #E5F2FB;
+            overflow: hidden;
+        }
+        img {
+            height:100vh;
+            cursor:pointer;
+        }
+    </style>
 </head>
 
-<body class="region_page">
-	<!-- Third-Party Scripts -->
-	<script src="SCRIPTS/jquery/jquery-3.1.1.min.js"></script>
-	<script src="SCRIPTS/bootstrap/js/bootstrap.js"></script>
-
-	<!-- ARTSTATION Landing Page -->
-	<div class="container">
-		<div class="col-md-12">
-			<br><br>
-			<!-- ARTSTATION Intro -->
-			<div class="jumbotron ARTSTATION_Intro">
-				<h1>ARTSTATION</h1>
-				<h3>Select a region from the ones available below.</h3>
-			</div>
-			<br><br>
-			<hr>
-			<!-- ARTSTATION Region List -->
-			<span class="ARTSTATION_RegionList"></span>
-			<br><br>
-			<!-- ARTSTATION Footer -->
-			<p class="ARTSTATION_Footer">ARTSTATION &copy; 2018</p>
-		</div>
-	</div>
-
-	<script>
-		/* Load all regions for ARTSTATION */
-		$(document).ready(function() {
-			var REGION_INFO = [];
-			var region_data = [];
-		    var regions_json_path = "http://assets.artstation.mattfiler.co.uk/CONFIGS/regions.json"; 
-		    $.getJSON(regions_json_path, function(data) {
-		        $.each(data, function(key, val) {
-		            region_data.push(val); //Add to array
-		        });
-		    }).done(function(json) {
-				region_data = region_data[0];
-				for (var i=0;i<region_data.length;i++) {
-					//For each region, display info and give option to go there
-					var main_title = document.createElement("h1");
-					main_title.innerHTML = region_data[i].name;
-					var main_desc = document.createElement("h4");
-					main_desc.innerHTML = region_data[i].description;
-					var main_link = document.createElement("a");
-					main_link.setAttribute("class", "region_list_link");
-					main_link.setAttribute("artstation_region", i);
-					main_link.onclick = function() {
-						var button_clicked = this;
-						$("body").fadeOut(500, function() {
-							window.location.replace("/region.html?r="+button_clicked.getAttribute("artstation_region"));
-						});
-					}
-					var main_divider = document.createElement("hr");
-
-					var main_div = document.createElement("div");
-					main_div.appendChild(main_link);
-					main_link.appendChild(main_title);
-					main_link.appendChild(main_desc);
-					main_div.appendChild(main_divider);
-
-					$(".ARTSTATION_RegionList").append(main_div);
-				}
-				$(".region_page").fadeIn(1000);
-			});
-		});
-	</script>
+<body>
+    <div align="right">
+        <img src="ASSETS/IMAGES/map.jpg">
+    </div>
+    
+    <script src="SCRIPTS/jquery/jquery-3.1.1.min.js"></script>
+    <script>
+        $("img").click(function() {
+            $("body").fadeOut(500, function() {
+                window.location.replace("/region.html?r=0");
+            });
+        });
+    </script>
 </body>
 </html>

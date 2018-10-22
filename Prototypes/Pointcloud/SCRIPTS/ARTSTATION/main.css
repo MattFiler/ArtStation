@@ -155,7 +155,7 @@ noscript {
 	display:none;
 }
 .modal-header, .ARTSTATION_Intro {
-	background: url("http://assets.artstation.mattfiler.co.uk/IMAGES/celtic.jpg");
+	background: url("/ASSETS/IMAGES/celtic.jpg");
 	background-size: cover;
 	color: white !important;
 	text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000 !important;  
