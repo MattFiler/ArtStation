@@ -2,10 +2,10 @@
 	$json_data = array();
 
 	//SRT Parse (DJI Drone Data)
-	if (file_get_contents("/ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['video'] . ".csv") == "") {
-		$raw_data = file_get_contents("/ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['video'] . ".srt");
+	if (file_get_contents("http://filepost.artstation.org.uk/ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['video'] . ".csv") == "") {
+		$raw_data = file_get_contents("http://filepost.artstation.org.uk/ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['video'] . ".srt");
 		if ($raw_data == "") {
-			$raw_data = file_get_contents("/ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['video'] . ".SRT");
+			$raw_data = file_get_contents("http://filepost.artstation.org.uk/ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['video'] . ".SRT");
 		}
 		$line_count = 0;
 		foreach(preg_split("/((\r?\n)|(\r\n?))/", $raw_data) as $line){
@@ -34,7 +34,7 @@
 
 	//CSV Parse (Litchi Data)
 	if ($json_data == array()) {
-		$raw_data = file_get_contents("/ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['video'] . ".csv");
+		$raw_data = file_get_contents("http://filepost.artstation.org.uk/ASSETS/VIDEOS/" . $_GET['location'] . "/" . $_GET['video'] . ".csv");
 		$line_count = 0;
 		$previous_line = array();
 		foreach(preg_split("/((\r?\n)|(\r\n?))/", $raw_data) as $line){
